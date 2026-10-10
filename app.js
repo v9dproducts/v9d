@@ -68,7 +68,7 @@ const Printers = {
     });
 
     const view = $('#view');
-    view.innerHTML = list.length
+    view.innerHTML = '<p class="banner" id="statusBanner" hidden></p>' + (list.length
       ? list.map((p) => `
           <div class="card">
             <div class="info" data-edit="${esc(p.id)}">
@@ -79,7 +79,7 @@ const Printers = {
             </div>
             <a class="btn" href="${esc(this.url(p))}" target="_blank" rel="noopener">Open</a>
           </div>`).join('')
-      : `<div class="empty">No printers yet.<br>Tap + to add one.</div>`;
+      : `<div class="empty">No printers yet.<br>Tap + to add one.</div>`);
 
     view.insertAdjacentHTML('beforeend', `
       <div class="toolbar">
@@ -102,13 +102,27 @@ const Printers = {
   async refreshStatus() {
     clearTimeout(this.statusTimer);
     if (location.hash !== '#/printers') return;
-    let data = null;
-    try { data = await Monitor.get('/api/status'); } catch {}
+    let data = null, error = '';
+    try { data = await Monitor.get('/api/status'); } catch (e) { error = e.message; }
+    // The monitor reports printers by the ids in printers.json; match by IP too, in case
+    // the list on this device was edited and the ids changed.
+    let seed = [];
+    try { seed = JSON.parse(store.get('printersSeed', '[]')); } catch {}
+    const list = store.get('printers', []);
     document.querySelectorAll('[data-status]').forEach((el) => {
-      const s = data?.printers?.[el.dataset.status];
+      const mine = list.find((p) => p.id === el.dataset.status);
+      const match = seed.find((p) => p.id === el.dataset.status) || seed.find((p) => mine && p.ip === mine.ip);
+      const s = data?.printers?.[el.dataset.status] || (match && data?.printers?.[match.id]);
       el.className = 'status' + (s ? ' ' + s.state : '');
       el.textContent = s ? this.describe(s) : '';
     });
+    const banner = $('#statusBanner');
+    if (banner) {
+      banner.hidden = !!data;
+      banner.textContent = /timed out|abort/i.test(error) || /Load failed|Failed to fetch|NetworkError/i.test(error)
+        ? 'Live status unavailable — turn on Tailscale to see it.'
+        : `Live status unavailable (${error || 'unknown error'}).`;
+    }
     this.statusTimer = setTimeout(() => this.refreshStatus(), 10000);
   },
 

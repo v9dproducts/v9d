@@ -123,3 +123,4 @@ main { padding: 16px 16px calc(var(--safe-bottom) + 32px); max-width: 720px; mar
 .note b { color: var(--text); }
 .btn:disabled { opacity: .5; }
 .sheet .btn.block { margin-bottom: 14px; }
+.banner { background: var(--surface-2); color: var(--muted); font-size: 13px; border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; }
