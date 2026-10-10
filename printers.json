@@ -1,3 +1,4 @@
 [
-  { "id": "example-1", "name": "Example printer", "model": "Replace me", "ip": "192.168.1.50", "notes": "Edit or delete this in the app" }
+  { "id": "k2-plus", "name": "K2 Plus", "model": "Creality K2 Plus", "ip": "192.168.1.67", "notes": "" },
+  { "id": "k1-max", "name": "K1 Max", "model": "Creality K1 Max", "ip": "192.168.1.149", "notes": "" }
 ]

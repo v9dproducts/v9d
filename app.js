@@ -37,10 +37,17 @@ $('#backBtn').addEventListener('click', () => { location.hash = '#/'; });
 const Printers = {
   async load() {
     let list = store.get('printers', null);
-    if (!list) {
-      // First run on this device: seed from printers.json
-      try { list = await (await fetch('printers.json', { cache: 'no-store' })).json(); } catch { list = []; }
-      store.set('printers', list);
+    // Use printers.json until the list is edited on this device, so updates to it reach every phone.
+    const unedited = !list
+      || JSON.stringify(list) === store.get('printersSeed', null)
+      || (list.length === 1 && list[0].id === 'example-1'); // placeholder from the first version
+    if (unedited) {
+      try {
+        const seed = await (await fetch('printers.json', { cache: 'no-store' })).json();
+        list = seed;
+        store.set('printers', list);
+        store.set('printersSeed', JSON.stringify(seed));
+      } catch { list = list || []; }
     }
     return list;
   },
