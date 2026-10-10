@@ -53,9 +53,10 @@ const Printers = {
   },
   save(list) { store.set('printers', list); },
 
+  // The printer's own control page: the custom web address if set, otherwise http://<ip>.
   url(p) {
-    const ip = p.ip.trim();
-    return /^https?:\/\//i.test(ip) ? ip : `http://${ip}`;
+    const addr = (p.url || p.ip).trim();
+    return /^https?:\/\//i.test(addr) ? addr : `http://${addr}`;
   },
 
   async render() {
@@ -95,13 +96,14 @@ const Printers = {
 
   edit(p) {
     const isNew = !p;
-    p = p || { id: crypto.randomUUID(), name: '', model: '', ip: '', notes: '' };
+    p = p || { id: crypto.randomUUID(), name: '', model: '', ip: '', url: '', notes: '' };
     openSheet(`
       <h2>${isNew ? 'Add printer' : 'Edit printer'}</h2>
       <form id="printerForm">
         <label class="field"><span>Name</span><input name="name" required value="${esc(p.name)}" placeholder="e.g. Bambu X1C – Office"></label>
         <label class="field"><span>Model</span><input name="model" value="${esc(p.model)}" placeholder="e.g. Bambu Lab X1 Carbon"></label>
         <label class="field"><span>IP address</span><input name="ip" required value="${esc(p.ip)}" placeholder="192.168.1.50" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        <label class="field"><span>Web page address (optional)</span><input name="url" value="${esc(p.url)}" placeholder="e.g. 192.168.1.67:4408 — leave empty to use the IP" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
         <label class="field"><span>Notes</span><textarea name="notes" rows="2">${esc(p.notes)}</textarea></label>
         <div class="row">
           <button type="button" class="btn" id="cancelSheet">Cancel</button>
