@@ -108,3 +108,18 @@ main { padding: 16px 16px calc(var(--safe-bottom) + 32px); max-width: 720px; mar
 .field input:focus, .field textarea:focus { outline: none; border-color: var(--accent); }
 .sheet .row { display: flex; gap: 8px; margin-top: 6px; }
 .sheet .row .btn { flex: 1; padding: 13px; }
+
+/* Live printer status */
+.status { font-size: 13px; font-weight: 600; margin-top: 4px; color: var(--muted); }
+.status:empty { display: none; }
+.status.printing { color: #4da3ff; }
+.status.complete { color: #3ccf7a; }
+.status.paused, .status.cancelled { color: #f5b942; }
+.status.error, .status.offline { color: var(--danger); }
+
+.note { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+.note:empty { display: none; }
+.note.ok { color: var(--text); }
+.note b { color: var(--text); }
+.btn:disabled { opacity: .5; }
+.sheet .btn.block { margin-bottom: 14px; }

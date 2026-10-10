@@ -63,7 +63,8 @@ const Printers = {
     const list = await this.load();
     setHeader('3D Printers', {
       back: true,
-      actions: `<button class="icon-btn" id="addPrinter" aria-label="Add printer">+</button>`,
+      actions: `<button class="icon-btn" id="openAlerts" aria-label="Notifications">${Alerts.bellIcon()}</button>
+                <button class="icon-btn" id="addPrinter" aria-label="Add printer">+</button>`,
     });
 
     const view = $('#view');
@@ -74,6 +75,7 @@ const Printers = {
               <div class="title">${esc(p.name)}</div>
               <div class="meta">${esc(p.model || '—')}</div>
               <div class="ip">${esc(p.ip)}</div>
+              <div class="status" data-status="${esc(p.id)}"></div>
             </div>
             <a class="btn" href="${esc(this.url(p))}" target="_blank" rel="noopener">Open</a>
           </div>`).join('')
@@ -87,11 +89,41 @@ const Printers = {
       <p class="hint">Tap a printer to edit it. “Open” goes to the printer’s own web page — that only works when your phone is on the same network as the printers.</p>`);
 
     $('#addPrinter').onclick = () => this.edit(null);
+    $('#openAlerts').onclick = () => Alerts.open();
+    this.refreshStatus();
     view.querySelectorAll('[data-edit]').forEach((el) => {
       el.onclick = () => this.edit(list.find((p) => p.id === el.dataset.edit));
     });
     $('#exportPrinters').onclick = () => this.exportList(list);
     $('#importPrinters').onclick = () => this.importList();
+  },
+
+  // Live status from the V9D monitor (only reachable with Tailscale on).
+  async refreshStatus() {
+    clearTimeout(this.statusTimer);
+    if (location.hash !== '#/printers') return;
+    let data = null;
+    try { data = await Monitor.get('/api/status'); } catch {}
+    document.querySelectorAll('[data-status]').forEach((el) => {
+      const s = data?.printers?.[el.dataset.status];
+      el.className = 'status' + (s ? ' ' + s.state : '');
+      el.textContent = s ? this.describe(s) : '';
+    });
+    this.statusTimer = setTimeout(() => this.refreshStatus(), 10000);
+  },
+
+  describe(s) {
+    const left = s.timeLeft ? ` · ${Math.round(s.timeLeft / 60)} min left` : '';
+    switch (s.state) {
+      case 'printing': return `Printing ${s.progress}%${left}`;
+      case 'paused': return `Paused at ${s.progress}%`;
+      case 'complete': return `Finished${s.file ? ' · ' + s.file : ''}`;
+      case 'cancelled': return 'Cancelled';
+      case 'error': return `Error${s.message ? ': ' + s.message : ''}`;
+      case 'offline': return 'Offline';
+      case 'idle': return 'Idle';
+      default: return 'Connecting…';
+    }
   },
 
   edit(p) {
@@ -163,6 +195,97 @@ const Printers = {
         alert('That doesn’t look like a valid printer list.');
       }
     };
+  },
+};
+
+// ---------- V9D monitor (runs on the home laptop, reached over Tailscale) ----------
+const Monitor = {
+  DEFAULT: 'https://niks.tail09fd44.ts.net',
+  base() { return (store.get('monitorUrl', '') || this.DEFAULT).replace(/\/+$/, ''); },
+  async get(path) {
+    const res = await fetch(this.base() + path, { signal: AbortSignal.timeout(5000), cache: 'no-store' });
+    if (!res.ok) throw new Error(`Monitor replied ${res.status}`);
+    return res.json();
+  },
+  async post(path, body) {
+    const res = await fetch(this.base() + path, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`Monitor replied ${res.status}`);
+    return res.json();
+  },
+};
+
+// ---------- Push notifications ----------
+const Alerts = {
+  bellIcon() {
+    return '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  },
+  supported() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; },
+  installed() { return navigator.standalone === true || matchMedia('(display-mode: standalone)').matches; },
+  // The service worker can take a moment (or fail) to start; never wait on it forever.
+  async registration() {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('The app is still starting — close and reopen V9D, then try again.')), 4000));
+    return Promise.race([navigator.serviceWorker.ready, timeout]);
+  },
+  async subscription() {
+    if (!this.supported()) return null;
+    return (await this.registration()).pushManager.getSubscription();
+  },
+
+  async open() {
+    const sub = await this.subscription().catch(() => null);
+    let body;
+    if (!this.supported() || (/iPhone|iPad/.test(navigator.userAgent) && !this.installed())) {
+      body = `<p class="note">To get notifications on iPhone, V9D must be opened from your Home Screen: in Safari tap <b>Share → Add to Home Screen</b>, then open V9D from the icon.</p>`;
+    } else if (sub) {
+      body = `<p class="note ok">Notifications are <b>on</b> for this device. You'll be told when a print finishes, fails, is cancelled or paused, or a printer goes offline mid-print.</p>
+        <div class="row"><button class="btn" id="alertTest">Send test</button><button class="btn danger" id="alertOff">Turn off</button></div>`;
+    } else {
+      body = `<p class="note">Get a notification when a print finishes, fails, is cancelled or paused, or a printer goes offline mid-print. Tailscale must be on the first time.</p>
+        <button class="btn primary block" id="alertOn">Enable notifications</button>`;
+    }
+    openSheet(`
+      <h2>Notifications</h2>
+      ${body}
+      <p class="note" id="alertMsg"></p>
+      <label class="field"><span>Monitor address</span><input id="monitorUrl" value="${esc(store.get('monitorUrl', ''))}" placeholder="${esc(Monitor.DEFAULT)}" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+      <div class="row"><button type="button" class="btn" id="cancelSheet">Close</button></div>`);
+
+    const msg = (t) => { $('#alertMsg').textContent = t; };
+    $('#cancelSheet').onclick = () => { store.set('monitorUrl', $('#monitorUrl').value.trim()); closeSheet(); };
+    $('#monitorUrl').onchange = (e) => store.set('monitorUrl', e.target.value.trim());
+
+    const on = $('#alertOn');
+    if (on) on.onclick = async () => {
+      on.disabled = true; msg('Setting up…');
+      try {
+        if (await Notification.requestPermission() !== 'granted') throw new Error('Notifications were not allowed. You can allow them in iPhone Settings → Notifications → V9D.');
+        const { publicKey } = await Monitor.get('/api/push-key').catch(() => { throw new Error('Can’t reach the V9D monitor. Check Tailscale is on and the monitor is running.'); });
+        const reg = await this.registration();
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: this.keyBytes(publicKey) });
+        await Monitor.post('/api/subscribe', { subscription: sub.toJSON() });
+        this.open();
+      } catch (e) { msg(e.message); on.disabled = false; }
+    };
+    const test = $('#alertTest');
+    if (test) test.onclick = async () => {
+      msg('Sending…');
+      try { await Monitor.post('/api/test', { endpoint: sub.endpoint }); msg('Sent — it should arrive in a few seconds.'); }
+      catch (e) { msg(/404/.test(e.message) ? 'The monitor doesn’t know this phone — turn notifications off and on again.' : 'Can’t reach the V9D monitor. Is Tailscale on?'); }
+    };
+    const off = $('#alertOff');
+    if (off) off.onclick = async () => {
+      await Monitor.post('/api/unsubscribe', { endpoint: sub.endpoint }).catch(() => {});
+      await sub.unsubscribe();
+      this.open();
+    };
+  },
+
+  keyBytes(base64url) {
+    const b64 = (base64url + '='.repeat((4 - base64url.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+    return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   },
 };
 

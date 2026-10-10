@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy so phones pick up the new files.
-const VERSION = 'v9d-5';
+const VERSION = 'v9d-6';
 const SHELL = [
   './',
   'index.html',
@@ -38,5 +38,29 @@ self.addEventListener('fetch', (e) => {
         return res;
       })
       .catch(() => caches.match(e.request, { ignoreSearch: true }))
+  );
+});
+
+// Push notifications from the V9D monitor.
+self.addEventListener('push', (e) => {
+  let msg = {};
+  try { msg = e.data.json(); } catch { msg = { title: 'V9D', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(msg.title || 'V9D', {
+    body: msg.body || '',
+    tag: msg.tag,
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    data: { url: msg.url || './' },
+  }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      const win = wins.find((w) => w.url.startsWith(self.registration.scope));
+      return win ? win.navigate(url).then((w) => (w || win).focus()) : self.clients.openWindow(url);
+    })
   );
 });

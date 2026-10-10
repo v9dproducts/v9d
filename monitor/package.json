@@ -1,0 +1,16 @@
+{
+  "name": "v9d-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Watches V9D printers and sends push notifications",
+  "main": "monitor.js",
+  "scripts": {
+    "start": "node monitor.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

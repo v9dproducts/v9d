@@ -1,0 +1,287 @@
+// V9D monitor — runs on a computer at home (on the printers' network), watches the
+// printers and sends Web Push notifications to phones that enabled them in V9D.
+// Also serves live printer status to the app. Requires Node.js 22+.
+
+const fs = require('fs');
+const path = require('path');
+const http = require('http');
+const webpush = require('web-push');
+
+const DATA = path.join(__dirname, 'data');
+fs.mkdirSync(DATA, { recursive: true });
+
+const config = {
+  port: 8787,
+  printersUrl: 'https://v9dproducts.github.io/v9d/printers.json',
+  allowedOrigins: ['https://v9dproducts.github.io', 'http://localhost:8099'],
+  offlineAfterSec: 120,
+  ...readJson(path.join(__dirname, 'config.json'), {}),
+};
+
+function readJson(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+}
+function writeJson(file, value) {
+  fs.writeFileSync(file, JSON.stringify(value, null, 2));
+}
+function log(...args) {
+  console.log(new Date().toLocaleString('sv-SE'), ...args);
+}
+
+// ---------- Web Push ----------
+const KEYS_FILE = path.join(DATA, 'vapid.json');
+const SUBS_FILE = path.join(DATA, 'subscriptions.json');
+
+let vapid = readJson(KEYS_FILE, null);
+if (!vapid) {
+  vapid = webpush.generateVAPIDKeys();
+  writeJson(KEYS_FILE, vapid);
+  log('Generated new push keys');
+}
+webpush.setVapidDetails('https://v9dproducts.github.io/v9d/', vapid.publicKey, vapid.privateKey);
+
+let subscriptions = readJson(SUBS_FILE, []);
+
+async function notify(title, body, tag) {
+  log('NOTIFY', title, '-', body);
+  const payload = JSON.stringify({ title, body, tag, url: './#/printers' });
+  for (const sub of [...subscriptions]) {
+    try {
+      await webpush.sendNotification(sub, payload, { TTL: 24 * 3600, urgency: 'high' });
+    } catch (err) {
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        log('Removing expired subscription');
+        subscriptions = subscriptions.filter((s) => s.endpoint !== sub.endpoint);
+        writeJson(SUBS_FILE, subscriptions);
+      } else {
+        log('Push failed:', err.statusCode || '', err.body || err.message);
+      }
+    }
+  }
+}
+
+// ---------- Printer state & events ----------
+// Normalised states: idle, printing, paused, complete, cancelled, error, offline
+const printers = new Map(); // id -> { cfg, status, watcher }
+
+function prettyFile(file) {
+  if (!file) return '';
+  return path.basename(String(file))
+    .replace(/\.gcode$/i, '')
+    .replace(/^obj_\d+_/, '')          // Creality Print prefix
+    .replace(/\.(stl|3mf|obj|step)_.*$/i, ''); // "...stl_PLA_23m39s"
+}
+function duration(sec) {
+  if (!sec || sec < 1) return '';
+  const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+}
+
+// Called by watchers with a fresh reading.
+function update(id, next) {
+  const p = printers.get(id);
+  if (!p) return;
+  const prev = p.status;
+  p.status = { ...prev, ...next, lastSeen: Date.now() };
+  if (!prev.state) return; // first reading after start-up: no events
+  const s = p.status, name = p.cfg.name, job = prettyFile(s.file);
+
+  if (s.state !== prev.state) {
+    log(`${name}: ${prev.state} -> ${s.state}`);
+    const was = prev.state;
+    const active = was === 'printing' || was === 'paused';
+    if (s.state === 'complete' && active) {
+      notify(`✅ ${name} finished`, [job, duration(s.printTime)].filter(Boolean).join(' · ') || 'Print complete', `${id}-done`);
+    } else if (s.state === 'error') {
+      notify(`❌ ${name} error`, s.message || (job ? `Print failed: ${job}` : 'The printer reported an error'), `${id}-error`);
+    } else if (s.state === 'cancelled' && active) {
+      notify(`⏹ ${name} cancelled`, job || 'Print cancelled', `${id}-cancel`);
+    } else if (s.state === 'paused' && was === 'printing') {
+      notify(`⏸ ${name} paused`, s.message || (job ? `${job} is paused — check filament` : 'Print paused'), `${id}-pause`);
+    }
+  } else if (s.errorCode && s.errorCode !== prev.errorCode && s.state !== 'error') {
+    notify(`❌ ${name} error`, s.message || `Error code ${s.errorCode}`, `${id}-error`);
+  }
+}
+
+function markOfflineIfStale(id) {
+  const p = printers.get(id);
+  if (p && p.status.state && p.status.state !== 'offline' &&
+      Date.now() - p.status.lastSeen > config.offlineAfterSec * 1000) {
+    const prev = p.status;
+    p.status = { ...prev, state: 'offline' };
+    // keep lastSeen so the next real reading is compared against 'offline'
+    if (prev.state) {
+      log(`${p.cfg.name}: ${prev.state} -> offline`);
+      const active = prev.state === 'printing' || prev.state === 'paused';
+      if (active) notify(`⚠️ ${p.cfg.name} went offline`, `Lost connection during ${prettyFile(prev.file) || 'a print'}`, `${id}-offline`);
+    }
+  }
+}
+
+// ---------- Watcher: Klipper / Moonraker (e.g. Creality K2 Plus) ----------
+function watchMoonraker(p) {
+  const base = `http://${p.cfg.ip}:${p.cfg.moonrakerPort || 7125}`;
+  const MAP = { standby: 'idle', printing: 'printing', paused: 'paused', complete: 'complete', cancelled: 'cancelled', error: 'error' };
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const res = await fetch(`${base}/printer/objects/query?print_stats&webhooks&virtual_sdcard`, { signal: AbortSignal.timeout(5000) });
+      const st = (await res.json()).result.status;
+      const ps = st.print_stats || {}, wh = st.webhooks || {}, sd = st.virtual_sdcard || {};
+      const klipperBroken = wh.state === 'shutdown' || wh.state === 'error';
+      update(p.cfg.id, {
+        state: klipperBroken ? 'error' : (MAP[ps.state] || 'idle'),
+        message: klipperBroken ? wh.state_message : ps.message || '',
+        file: ps.filename || '',
+        progress: Math.round((sd.progress || 0) * 100),
+        printTime: ps.print_duration || 0,
+        timeLeft: ps.state === 'printing' && sd.progress > 0.02
+          ? Math.round(ps.print_duration / sd.progress - ps.print_duration) : 0,
+      });
+    } catch {
+      markOfflineIfStale(p.cfg.id);
+    }
+    setTimeout(tick, 5000);
+  };
+  tick();
+  return { stop: () => { stopped = true; } };
+}
+
+// ---------- Watcher: Creality K1 series (WebSocket on port 9999) ----------
+function watchCreality(p) {
+  // state: 0 idle, 1 printing, 2 complete, 3 failed, 4 stopped, 5 paused
+  const MAP = { 0: 'idle', 1: 'printing', 2: 'complete', 3: 'error', 4: 'cancelled', 5: 'paused' };
+  const id = p.cfg.id;
+  let ws, stopped = false, lastMsg = 0, raw = {};
+
+  const connect = () => {
+    if (stopped) return;
+    raw = {};
+    try { ws = new WebSocket(`ws://${p.cfg.ip}:${p.cfg.websocketPort || 9999}/`); } catch { return setTimeout(connect, 10000); }
+    ws.onmessage = (ev) => {
+      lastMsg = Date.now();
+      const text = String(ev.data);
+      if (text.includes('heart_beat')) { try { ws.send('ok'); } catch {} return; }
+      let m; try { m = JSON.parse(text); } catch { return; }
+      Object.assign(raw, m);
+      if (raw.state === undefined) return;
+      const err = raw.err || {};
+      const errorCode = err.errcode ? `${err.errcode}${err.key ? '/' + err.key : ''}` : '';
+      update(id, {
+        state: MAP[raw.state] || 'idle',
+        message: errorCode ? (err.value || `Error code ${errorCode}`) : '',
+        errorCode,
+        file: raw.printFileName || '',
+        progress: raw.printProgress ?? 0,
+        printTime: raw.printJobTime || 0,
+        timeLeft: raw.printLeftTime || 0,
+      });
+    };
+    ws.onclose = () => { if (!stopped) setTimeout(connect, 5000); };
+    ws.onerror = () => { try { ws.close(); } catch {} };
+  };
+  connect();
+
+  // The printer streams updates constantly; silence means the connection is dead.
+  const guard = setInterval(() => {
+    if (Date.now() - lastMsg > 60000) { try { ws.close(); } catch {} }
+    markOfflineIfStale(id);
+  }, 15000);
+
+  return { stop: () => { stopped = true; clearInterval(guard); try { ws.close(); } catch {} } };
+}
+
+const WATCHERS = { moonraker: watchMoonraker, creality: watchCreality };
+
+// ---------- Printer list (from the V9D site, so it stays in sync with the app) ----------
+async function loadPrinters() {
+  let list;
+  try {
+    list = await (await fetch(config.printersUrl, { cache: 'no-store', signal: AbortSignal.timeout(10000) })).json();
+    writeJson(path.join(DATA, 'printers-cache.json'), list);
+  } catch {
+    list = readJson(path.join(DATA, 'printers-cache.json'), null) || readJson(path.join(__dirname, '..', 'printers.json'), []);
+  }
+  const wanted = new Map(list.filter((x) => WATCHERS[x.type]).map((x) => [x.id, x]));
+  for (const [id, p] of printers) {
+    if (JSON.stringify(p.cfg) !== JSON.stringify(wanted.get(id))) { p.watcher.stop(); printers.delete(id); }
+  }
+  for (const [id, cfg] of wanted) {
+    if (printers.has(id)) continue;
+    const p = { cfg, status: { lastSeen: Date.now() } };
+    printers.set(id, p);
+    p.watcher = WATCHERS[cfg.type](p);
+    log(`Watching ${cfg.name} (${cfg.type}, ${cfg.ip})`);
+  }
+}
+
+// ---------- HTTP API (exposed to the phone via `tailscale serve`) ----------
+function send(res, code, body, origin) {
+  const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+  if (origin && config.allowedOrigins.includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+    headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
+    headers['Access-Control-Allow-Headers'] = 'Content-Type';
+    headers['Vary'] = 'Origin';
+  }
+  res.writeHead(code, headers);
+  res.end(body === undefined ? '' : JSON.stringify(body));
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (c) => { data += c; if (data.length > 20000) req.destroy(); });
+    req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch (e) { reject(e); } });
+  });
+}
+
+http.createServer(async (req, res) => {
+  const origin = req.headers.origin;
+  const url = new URL(req.url, 'http://x');
+  try {
+    if (req.method === 'OPTIONS') return send(res, 204, undefined, origin);
+
+    if (req.method === 'GET' && url.pathname === '/api/status') {
+      const out = {};
+      for (const [id, p] of printers) {
+        const { lastSeen, ...s } = p.status;
+        out[id] = { ...s, file: prettyFile(s.file), state: s.state || 'connecting' };
+      }
+      return send(res, 200, { printers: out }, origin);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/push-key') {
+      return send(res, 200, { publicKey: vapid.publicKey }, origin);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/subscribe') {
+      const { subscription } = await readBody(req);
+      if (!subscription?.endpoint || !subscription?.keys) return send(res, 400, { error: 'bad subscription' }, origin);
+      subscriptions = subscriptions.filter((s) => s.endpoint !== subscription.endpoint).concat(subscription);
+      writeJson(SUBS_FILE, subscriptions);
+      log('Phone subscribed; total', subscriptions.length);
+      return send(res, 200, { ok: true }, origin);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/unsubscribe') {
+      const { endpoint } = await readBody(req);
+      subscriptions = subscriptions.filter((s) => s.endpoint !== endpoint);
+      writeJson(SUBS_FILE, subscriptions);
+      return send(res, 200, { ok: true }, origin);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/test') {
+      const { endpoint } = await readBody(req);
+      const sub = subscriptions.find((s) => s.endpoint === endpoint);
+      if (!sub) return send(res, 404, { error: 'not subscribed' }, origin);
+      await webpush.sendNotification(sub, JSON.stringify({ title: '🔔 V9D', body: 'Notifications are working.', tag: 'test', url: './#/printers' }));
+      return send(res, 200, { ok: true }, origin);
+    }
+    send(res, 404, { error: 'not found' }, origin);
+  } catch (err) {
+    log('API error:', err.message);
+    send(res, 500, { error: err.message }, origin);
+  }
+}).listen(config.port, '127.0.0.1', () => log(`V9D monitor on http://127.0.0.1:${config.port}`));
+
+loadPrinters();
+setInterval(loadPrinters, 10 * 60 * 1000);
