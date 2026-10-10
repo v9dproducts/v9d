@@ -1,10 +1,11 @@
 // Bump VERSION on every deploy so phones pick up the new files.
-const VERSION = 'v9d-9';
+const VERSION = 'v9d-10';
 const SHELL = [
   './',
   'index.html',
   'styles.css',
   'app.js',
+  'costs.js',
   'printers.json',
   'manifest.webmanifest',
   'icons/apple-touch-icon.png',

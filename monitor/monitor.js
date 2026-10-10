@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const webpush = require('web-push');
+const { MOONRAKER_OBJECTS, estimateMoonraker, estimateCreality, profileFor } = require('./power');
+const { Usage, moonrakerHistory, crealityHistory } = require('./usage');
 
 const DATA = path.join(__dirname, 'data');
 fs.mkdirSync(DATA, { recursive: true });
@@ -60,6 +62,24 @@ async function notify(title, body, tag) {
   }
 }
 
+// ---------- Usage & power ----------
+const usage = new Usage(DATA, log);
+usage.onSessionEnd = (id) => setTimeout(() => syncHistory(id), 20000);
+
+function recordPower(id, power, state) {
+  const p = printers.get(id);
+  if (!p) return;
+  p.power = power;
+  usage.sample(id, power.watts, state);
+}
+
+async function syncHistory(id) {
+  const p = printers.get(id);
+  if (!p?.watcher.history) return;
+  try { usage.mergeHistory(p.cfg, await p.watcher.history()); }
+  catch (err) { log(`${p.cfg.name}: history sync failed (${err.message})`); }
+}
+
 // ---------- Printer state & events ----------
 // Normalised states: idle, printing, paused, complete, cancelled, error, offline
 const printers = new Map(); // id -> { cfg, status, watcher }
@@ -110,6 +130,7 @@ function markOfflineIfStale(id) {
       Date.now() - p.status.lastSeen > config.offlineAfterSec * 1000) {
     const prev = p.status;
     p.status = { ...prev, state: 'offline' };
+    p.power = null;
     // keep lastSeen so the next real reading is compared against 'offline'
     if (prev.state) {
       log(`${p.cfg.name}: ${prev.state} -> offline`);
@@ -127,12 +148,15 @@ function watchMoonraker(p) {
   const tick = async () => {
     if (stopped) return;
     try {
-      const res = await fetch(`${base}/printer/objects/query?print_stats&webhooks&virtual_sdcard`, { signal: AbortSignal.timeout(5000) });
+      const objects = ['print_stats', 'webhooks', 'virtual_sdcard', ...MOONRAKER_OBJECTS].map(encodeURIComponent).join('&');
+      const res = await fetch(`${base}/printer/objects/query?${objects}`, { signal: AbortSignal.timeout(5000) });
       const st = (await res.json()).result.status;
       const ps = st.print_stats || {}, wh = st.webhooks || {}, sd = st.virtual_sdcard || {};
       const klipperBroken = wh.state === 'shutdown' || wh.state === 'error';
+      const state = klipperBroken ? 'error' : (MAP[ps.state] || 'idle');
+      recordPower(p.cfg.id, estimateMoonraker(p.cfg, st, state === 'printing'), state);
       update(p.cfg.id, {
-        state: klipperBroken ? 'error' : (MAP[ps.state] || 'idle'),
+        state,
         message: klipperBroken ? wh.state_message : ps.message || '',
         file: ps.filename || '',
         progress: Math.round((sd.progress || 0) * 100),
@@ -146,7 +170,7 @@ function watchMoonraker(p) {
     setTimeout(tick, 5000);
   };
   tick();
-  return { stop: () => { stopped = true; } };
+  return { stop: () => { stopped = true; }, history: () => moonrakerHistory(p.cfg) };
 }
 
 // ---------- Watcher: Creality K1 series (WebSocket on port 9999) ----------
@@ -154,7 +178,7 @@ function watchCreality(p) {
   // state: 0 idle, 1 printing, 2 complete, 3 failed, 4 stopped, 5 paused
   const MAP = { 0: 'idle', 1: 'printing', 2: 'complete', 3: 'error', 4: 'cancelled', 5: 'paused' };
   const id = p.cfg.id;
-  let ws, stopped = false, lastMsg = 0, raw = {};
+  let ws, stopped = false, lastMsg = 0, raw = {}, lastPower = 0, historyWaiters = [];
 
   const connect = () => {
     if (stopped) return;
@@ -165,12 +189,18 @@ function watchCreality(p) {
       const text = String(ev.data);
       if (text.includes('heart_beat')) { try { ws.send('ok'); } catch {} return; }
       let m; try { m = JSON.parse(text); } catch { return; }
+      if (m.historyList) { historyWaiters.splice(0).forEach((w) => w(m.historyList)); return; }
       Object.assign(raw, m);
       if (raw.state === undefined) return;
       const err = raw.err || {};
       const errorCode = err.errcode ? `${err.errcode}${err.key ? '/' + err.key : ''}` : '';
+      const state = MAP[raw.state] || 'idle';
+      if (Date.now() - lastPower >= 5000) { // updates arrive many times a second
+        lastPower = Date.now();
+        recordPower(id, estimateCreality(p.cfg, raw, state === 'printing'), state);
+      }
       update(id, {
-        state: MAP[raw.state] || 'idle',
+        state,
         message: errorCode ? (err.value || `Error code ${errorCode}`) : '',
         errorCode,
         file: raw.printFileName || '',
@@ -190,7 +220,14 @@ function watchCreality(p) {
     markOfflineIfStale(id);
   }, 15000);
 
-  return { stop: () => { stopped = true; clearInterval(guard); try { ws.close(); } catch {} } };
+  const history = () => new Promise((resolve, reject) => {
+    if (!ws || ws.readyState !== 1) return reject(new Error('not connected'));
+    const timer = setTimeout(() => reject(new Error('no reply')), 15000);
+    historyWaiters.push((list) => { clearTimeout(timer); resolve(crealityHistory(list)); });
+    ws.send(JSON.stringify({ method: 'get', params: { reqHistory: 1 } }));
+  });
+
+  return { stop: () => { stopped = true; clearInterval(guard); try { ws.close(); } catch {} }, history };
 }
 
 const WATCHERS = { moonraker: watchMoonraker, creality: watchCreality };
@@ -252,6 +289,23 @@ http.createServer(async (req, res) => {
       }
       return send(res, 200, { printers: out }, origin);
     }
+    if (req.method === 'GET' && url.pathname === '/api/power') {
+      const out = {};
+      for (const [id, p] of printers) {
+        out[id] = {
+          name: p.cfg.name, state: p.status.state || 'connecting',
+          watts: p.power?.watts ?? null, parts: p.power?.parts || null, inputs: p.power?.inputs || null,
+          todayWh: Math.round(usage.todayWh(id)), sessionWh: Math.round(usage.currentSession(id)?.wh || 0),
+          samples: usage.samples(id),
+        };
+      }
+      return send(res, 200, { printers: out, time: Date.now() }, origin);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/usage') {
+      const profiles = {};
+      for (const [id, p] of printers) profiles[id] = { name: p.cfg.name, ...profileFor(p.cfg), typicalPrintW: Math.round(usage.typicalPrintW(p.cfg)) };
+      return send(res, 200, { jobs: usage.jobList(), days: usage.days, since: usage.since, printers: profiles }, origin);
+    }
     if (req.method === 'GET' && url.pathname === '/api/push-key') {
       return send(res, 200, { publicKey: vapid.publicKey }, origin);
     }
@@ -283,5 +337,8 @@ http.createServer(async (req, res) => {
   }
 }).listen(config.port, '127.0.0.1', () => log(`V9D monitor on http://127.0.0.1:${config.port}`));
 
-loadPrinters();
+loadPrinters().then(() => setTimeout(() => { for (const id of printers.keys()) syncHistory(id); }, 10000));
 setInterval(loadPrinters, 10 * 60 * 1000);
+setInterval(() => { for (const id of printers.keys()) syncHistory(id); }, 30 * 60 * 1000);
+process.on('SIGINT', () => { usage.dirty = true; usage.save(); process.exit(0); });
+process.on('SIGTERM', () => { usage.dirty = true; usage.save(); process.exit(0); });
