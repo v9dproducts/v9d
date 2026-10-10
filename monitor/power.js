@@ -20,7 +20,7 @@ const PROFILES = {
     bedW: 800, hotendW: 100, chamberW: 300,
     electronicsW: 18,   // mainboard, screen, camera, LEDs, CFS idle
     motionW: 35,        // steppers + drivers while printing
-    holdW: 6,           // steppers holding position when idle
+    holdW: 6,           // steppers holding position just after a print (off after ~10 min)
     fansW: { part: 8, aux: 15, exhaust: 6, hotend: 3, chamber: 4 },
     psuEff: 0.88,
     typicalPrintW: 215, // average while printing PLA (live readings 200–229 W); used for
@@ -41,6 +41,9 @@ const PROFILES = {
     heatupWh: 25,
   },
 };
+
+// Wall power when switched on but not printing: electronics only (heaters and motors off).
+function standbyW(prof) { return prof.electronicsW / prof.psuEff; }
 
 function profileFor(cfg) {
   const key = Object.keys(PROFILES).find((k) => (cfg.model || cfg.name || '').includes(k));
@@ -73,7 +76,7 @@ const MOONRAKER_OBJECTS = [
   'heater_fan hotend_fan', 'heater_fan chamber_fan', 'temperature_sensor chamber_temp',
 ];
 
-function estimateMoonraker(cfg, st, printing) {
+function estimateMoonraker(cfg, st, printing, holding) {
   const prof = profileFor(cfg);
   const bed = st.heater_bed || {}, ext = st.extruder || {}, ch = st['heater_generic chamber_heater'] || {};
   const f = prof.fansW;
@@ -87,7 +90,7 @@ function estimateMoonraker(cfg, st, printing) {
     hotend: clamp01(ext.power) * prof.hotendW,
     chamber: clamp01(ch.power) * (prof.chamberW || 0),
     fans,
-    motion: printing ? prof.motionW : prof.holdW,
+    motion: printing ? prof.motionW : holding ? prof.holdW : 0,
     electronics: prof.electronicsW,
   }, {
     bed: { temp: bed.temperature, target: bed.target, duty: bed.power },
@@ -103,7 +106,7 @@ function heldDuty(temp, target, ambient, ratedW, lossWPerK, extraW = 0) {
   return clamp01((lossWPerK * Math.max(0, temp - ambient) + extraW) / ratedW);
 }
 
-function estimateCreality(cfg, raw, printing) {
+function estimateCreality(cfg, raw, printing, holding) {
   const prof = profileFor(cfg);
   const num = (x) => Number.parseFloat(x) || 0;
   const bedT = num(raw.bedTemp0), bedTarget = num(raw.targetBedTemp0);
@@ -121,7 +124,7 @@ function estimateCreality(cfg, raw, printing) {
     bed: bedDuty * prof.bedW,
     hotend: hotDuty * prof.hotendW,
     fans,
-    motion: printing ? prof.motionW : prof.holdW,
+    motion: printing ? prof.motionW : holding ? prof.holdW : 0,
     electronics: prof.electronicsW,
   }, {
     bed: { temp: bedT, target: bedTarget, duty: bedDuty },
@@ -142,4 +145,4 @@ function gramsFromMm(mm, material) {
   return (mm * areaMm2 / 1000) * (DENSITY[material] || DENSITY.PLA);
 }
 
-module.exports = { PROFILES, profileFor, MOONRAKER_OBJECTS, estimateMoonraker, estimateCreality, materialFromFile, gramsFromMm };
+module.exports = { PROFILES, profileFor, standbyW, MOONRAKER_OBJECTS, estimateMoonraker, estimateCreality, materialFromFile, gramsFromMm };

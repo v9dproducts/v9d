@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const webpush = require('web-push');
-const { MOONRAKER_OBJECTS, estimateMoonraker, estimateCreality, profileFor } = require('./power');
+const { MOONRAKER_OBJECTS, estimateMoonraker, estimateCreality, profileFor, standbyW } = require('./power');
 const { Usage, moonrakerHistory, crealityHistory } = require('./usage');
 
 const DATA = path.join(__dirname, 'data');
@@ -65,6 +65,14 @@ async function notify(title, body, tag) {
 // ---------- Usage & power ----------
 const usage = new Usage(DATA, log);
 usage.onSessionEnd = (id) => setTimeout(() => syncHistory(id), 20000);
+
+// Motors stay energised for a while after a print, then the firmware switches them off.
+function holding(id, state) {
+  const p = printers.get(id);
+  if (!p) return false;
+  if (state === 'printing' || state === 'paused') p.lastActive = Date.now();
+  return Date.now() - (p.lastActive || 0) < 10 * 60 * 1000;
+}
 
 function recordPower(id, power, state) {
   const p = printers.get(id);
@@ -154,7 +162,7 @@ function watchMoonraker(p) {
       const ps = st.print_stats || {}, wh = st.webhooks || {}, sd = st.virtual_sdcard || {};
       const klipperBroken = wh.state === 'shutdown' || wh.state === 'error';
       const state = klipperBroken ? 'error' : (MAP[ps.state] || 'idle');
-      recordPower(p.cfg.id, estimateMoonraker(p.cfg, st, state === 'printing'), state);
+      recordPower(p.cfg.id, estimateMoonraker(p.cfg, st, state === 'printing', holding(p.cfg.id, state)), state);
       update(p.cfg.id, {
         state,
         message: klipperBroken ? wh.state_message : ps.message || '',
@@ -197,7 +205,7 @@ function watchCreality(p) {
       const state = MAP[raw.state] || 'idle';
       if (Date.now() - lastPower >= 5000) { // updates arrive many times a second
         lastPower = Date.now();
-        recordPower(id, estimateCreality(p.cfg, raw, state === 'printing'), state);
+        recordPower(id, estimateCreality(p.cfg, raw, state === 'printing', holding(id, state)), state);
       }
       update(id, {
         state,
@@ -303,7 +311,10 @@ http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/usage') {
       const profiles = {};
-      for (const [id, p] of printers) profiles[id] = { name: p.cfg.name, ...profileFor(p.cfg), typicalPrintW: Math.round(usage.typicalPrintW(p.cfg)) };
+      for (const [id, p] of printers) {
+        const prof = profileFor(p.cfg);
+        profiles[id] = { name: p.cfg.name, ...prof, typicalPrintW: Math.round(usage.typicalPrintW(p.cfg)), standbyW: Math.round(usage.standbyW(p.cfg, standbyW(prof)) * 10) / 10 };
+      }
       return send(res, 200, { jobs: usage.jobList(), days: usage.days, since: usage.since, printers: profiles }, origin);
     }
     if (req.method === 'GET' && url.pathname === '/api/push-key') {

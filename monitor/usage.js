@@ -17,6 +17,7 @@ class Usage {
     this.sessions = saved.sessions || []; // measured energy per print: { printer, start, end, wh }
     this.days = saved.days || {};         // 'YYYY-MM-DD' -> { printerId: Wh }
     this.since = saved.since || Date.now();
+    this.idle = saved.idle || {};         // printerId -> { wh, h } measured while idle, heaters off
     this.live = new Map();                // printerId -> { last, samples: [[t, W]], session }
     this.dirty = false;
     setInterval(() => this.save(), 60 * 1000);
@@ -26,7 +27,7 @@ class Usage {
     if (!this.dirty) return;
     this.dirty = false;
     const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify({ since: this.since, jobs: this.jobs, sessions: this.sessions.slice(-2000), days: this.days }));
+    fs.writeFileSync(tmp, JSON.stringify({ since: this.since, idle: this.idle, jobs: this.jobs, sessions: this.sessions.slice(-2000), days: this.days }));
     fs.renameSync(tmp, this.file);
   }
 
@@ -52,6 +53,13 @@ class Usage {
       this.onSessionEnd?.(id);
     }
 
+    // Learn standby power from idle readings (heaters off, motors released).
+    if (!active && watts < 60 && now - (l.lastActiveAt || 0) > 15 * 60 * 1000) {
+      const x = (this.idle[id] ||= { wh: 0, h: 0 });
+      x.wh += wh; x.h += dt;
+    }
+    if (active) l.lastActiveAt = now;
+
     l.samples.push([now, Math.round(watts)]);
     while (l.samples.length && l.samples[0][0] < now - SAMPLE_WINDOW_MS) l.samples.shift();
     this.dirty = true;
@@ -67,6 +75,11 @@ class Usage {
     const hours = s.reduce((a, x) => a + (x.end - x.start) / 3600000, 0);
     if (hours >= 1) return s.reduce((a, x) => a + x.wh, 0) / hours;
     return profileFor(cfg).typicalPrintW;
+  }
+
+  standbyW(cfg, fallback) {
+    const x = this.idle[cfg.id];
+    return x && x.h >= 1 ? x.wh / x.h : fallback;
   }
 
   // Merge print history reported by a printer (normalised records) into the job log.

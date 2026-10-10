@@ -112,6 +112,18 @@ const UsagePage = {
     return 0;
   },
 
+  // Energy while switched on but not printing: idle hours in the period × standby watts.
+  standbyWh(id, from) {
+    const mine = this.data.jobs.filter((j) => j.printer === id);
+    if (!mine.length) return 0;
+    // A fixed period counts in full (the printers are on 24/7); "All time" starts at the
+    // first recorded print.
+    const start = from || Math.min(...mine.map((j) => j.start)), end = Date.now();
+    const busy = mine.reduce((a, j) => a + Math.max(0, Math.min(j.end, end) - Math.max(j.start, start)), 0);
+    const idleH = Math.max(0, end - start - busy) / 3600000;
+    return idleH * (this.data.printers[id]?.standbyW || 0);
+  },
+
   renderResults() {
     document.querySelectorAll('[data-period]').forEach((b) => b.classList.toggle('on', b.dataset.period === this.period));
     document.querySelectorAll('[data-printer]').forEach((b) => b.classList.toggle('on', b.dataset.printer === this.printer));
@@ -120,25 +132,22 @@ const UsagePage = {
     const jobs = this.data.jobs.filter((j) => j.start >= from && (this.printer === 'all' || j.printer === this.printer));
 
     const sum = (f) => jobs.reduce((a, j) => a + f(j), 0);
-    const grams = sum((j) => j.grams), wh = sum((j) => j.energyWh), secs = sum((j) => j.printSec);
+    const grams = sum((j) => j.grams), printWh = sum((j) => j.energyWh), secs = sum((j) => j.printSec);
+    const ids = this.printer === 'all' ? Object.keys(names) : [this.printer];
+    const standby = Object.fromEntries(ids.map((id) => [id, this.standbyWh(id, from)]));
+    const standbyWh = Object.values(standby).reduce((a, b) => a + b, 0);
+    const wh = printWh + standbyWh;
     const matCost = Prices.material(grams, p), elecCost = Prices.energy(wh, p);
     const estimated = jobs.filter((j) => j.energySource === 'estimated').length;
 
-    // Standby + printing energy logged by the monitor (only since it started recording).
-    const fromDay = new Date(Math.max(from, this.data.since)).toISOString().slice(0, 10);
-    let loggedWh = 0;
-    for (const [day, per] of Object.entries(this.data.days)) {
-      if (day < fromDay) continue;
-      for (const [id, v] of Object.entries(per)) if (this.printer === 'all' || id === this.printer) loggedWh += v;
-    }
-
-    const perPrinter = this.printer === 'all' ? Object.keys(names).map((id) => {
+    const perPrinter = this.printer === 'all' ? ids.map((id) => {
       const js = jobs.filter((j) => j.printer === id);
-      const g = js.reduce((a, j) => a + j.grams, 0), e = js.reduce((a, j) => a + j.energyWh, 0);
+      const g = js.reduce((a, j) => a + j.grams, 0), e = js.reduce((a, j) => a + j.energyWh, 0) + standby[id];
       return `<div class="row-item"><span>${esc(names[id].name)}</span>
         <span class="muted">${js.length} prints · ${fmt.grams(g)} · ${fmt.kwh(e)}</span>
         <b>${fmt.money(Prices.material(g, p) + Prices.energy(e, p))}</b></div>`;
     }).join('') : '';
+    const standbyNote = ids.map((id) => `${esc(names[id].name)} ${names[id].standbyW} W`).join(', ');
 
     // Group print list by day
     let lastDay = '', list = '';
@@ -165,10 +174,13 @@ const UsagePage = {
         <div class="stat"><div class="stat-label">Material</div><div class="stat-num">${fmt.money(matCost)}</div><div class="muted">${fmt.grams(grams)}</div></div>
         <div class="stat"><div class="stat-label">Electricity</div><div class="stat-num">${fmt.money(elecCost)}</div><div class="muted">${fmt.kwh(wh)}</div></div>
       </div>
+      <div class="panel">
+        <div class="row-item"><span>Printing</span><span class="muted">${fmt.kwh(printWh)}</span><b>${fmt.money(Prices.energy(printWh, p))}</b></div>
+        <div class="row-item"><span>Standby</span><span class="muted">${fmt.kwh(standbyWh)}</span><b>${fmt.money(Prices.energy(standbyWh, p))}</b></div>
+      </div>
       ${perPrinter ? `<div class="panel">${perPrinter}</div>` : ''}
-      ${loggedWh > 0 ? `<p class="hint">Including standby time, the printers used ${fmt.kwh(loggedWh)} (${fmt.money(Prices.energy(loggedWh, p))}) in this period since monitoring began on ${fmt.date(this.data.since)}.</p>` : ''}
       ${list || '<div class="empty">No prints in this period.</div>'}
-      <p class="hint">Material is reported by the printers (1.75 mm filament, weight from the material’s density). Electricity is estimated from the heaters’ power — see Live Power.${estimated ? ` * Prints from before monitoring started are estimated from print time.` : ''}</p>`;
+      <p class="hint">Material is reported by the printers (1.75 mm filament, weight from the material’s density). Electricity is estimated from the heaters’ power — see Live Power. Standby assumes the printers are on 24/7, idling at ${standbyNote} when not printing${this.period === 'all' ? ', counted from each printer’s first recorded print' : ''}.${estimated ? ` * Prints from before monitoring started are estimated from print time.` : ''}</p>`;
   },
 };
 
