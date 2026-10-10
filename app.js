@@ -119,9 +119,7 @@ const Printers = {
     const banner = $('#statusBanner');
     if (banner) {
       banner.hidden = !!data;
-      banner.textContent = /timed out|abort/i.test(error) || /Load failed|Failed to fetch|NetworkError/i.test(error)
-        ? 'Live status unavailable — turn on Tailscale to see it.'
-        : `Live status unavailable (${error || 'unknown error'}).`;
+      banner.textContent = `Live status unavailable — can’t reach the V9D monitor. Check Tailscale is on. (${error || 'unknown error'})`;
     }
     this.statusTimer = setTimeout(() => this.refreshStatus(), 10000);
   },
