@@ -1,4 +1,4 @@
 [
-  { "id": "k2-plus", "name": "K2 Plus", "model": "Creality K2 Plus", "ip": "192.168.1.67", "url": "http://192.168.1.67:4408", "type": "moonraker", "notes": "" },
-  { "id": "k1-max", "name": "K1 Max", "model": "Creality K1 Max", "ip": "192.168.1.149", "url": "", "type": "creality", "notes": "" }
+  { "id": "k2-plus", "name": "K2 Plus", "model": "Creality K2 Plus", "ip": "192.168.1.67", "url": "http://192.168.1.67:4408", "type": "moonraker", "camera": "creality", "notes": "" },
+  { "id": "k1-max", "name": "K1 Max", "model": "Creality K1 Max", "ip": "192.168.1.149", "url": "", "type": "creality", "camera": "creality", "notes": "" }
 ]

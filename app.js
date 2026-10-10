@@ -26,6 +26,7 @@ function openSheet(html) {
   $('#sheetBackdrop').hidden = false;
 }
 function closeSheet() {
+  $('#sheet').classList.remove('wide');
   $('#sheet').hidden = true;
   $('#sheetBackdrop').hidden = true;
   $('#sheet').innerHTML = '';
@@ -77,7 +78,10 @@ const Printers = {
               <div class="ip">${esc(p.ip)}</div>
               <div class="status" data-status="${esc(p.id)}"></div>
             </div>
-            <a class="btn" href="${esc(this.url(p))}" target="_blank" rel="noopener">Open</a>
+            <div class="actions">
+              ${p.camera ? `<button class="btn" data-camera="${esc(p.id)}">Camera</button>` : ''}
+              <a class="btn" href="${esc(this.url(p))}" target="_blank" rel="noopener">Open</a>
+            </div>
           </div>`).join('')
       : `<div class="empty">No printers yet.<br>Tap + to add one.</div>`);
 
@@ -90,6 +94,9 @@ const Printers = {
 
     $('#addPrinter').onclick = () => this.edit(null);
     $('#openAlerts').onclick = () => Alerts.open();
+    view.querySelectorAll('[data-camera]').forEach((el) => {
+      el.onclick = () => this.camera(list.find((p) => p.id === el.dataset.camera));
+    });
     this.refreshStatus();
     view.querySelectorAll('[data-edit]').forEach((el) => {
       el.onclick = () => this.edit(list.find((p) => p.id === el.dataset.edit));
@@ -122,6 +129,20 @@ const Printers = {
       banner.textContent = `Live status unavailable — can’t reach the V9D monitor. Check Tailscale is on. (${error || 'unknown error'})`;
     }
     this.statusTimer = setTimeout(() => this.refreshStatus(), 10000);
+  },
+
+  // Live camera, relayed by go2rtc on the home laptop (served on port 8443 over Tailscale).
+  camera(p) {
+    const src = new URL(Monitor.base());
+    src.port = '8443';
+    src.pathname = '/stream.html';
+    src.search = new URLSearchParams({ src: p.id, mode: 'webrtc,mse,hls' });
+    openSheet(`
+      <div class="cam-head"><h2>${esc(p.name)} camera</h2><button class="icon-btn" id="cancelSheet" aria-label="Close">✕</button></div>
+      <div class="cam"><iframe src="${esc(src.href)}" allow="autoplay; fullscreen" allowfullscreen></iframe></div>
+      <p class="note">Needs Tailscale on. <a href="${esc(src.href)}" target="_blank" rel="noopener">Open full screen</a></p>`);
+    $('#sheet').classList.add('wide');
+    $('#cancelSheet').onclick = closeSheet;
   },
 
   describe(s) {

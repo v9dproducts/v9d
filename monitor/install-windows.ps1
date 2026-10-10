@@ -20,6 +20,14 @@ if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
 Pop-Location
 New-Item -ItemType Directory -Force -Path (Join-Path $dir 'data') | Out-Null
 
+# Stop copies from an earlier install so the new ones can take over their ports.
+foreach ($t in 'V9D Monitor', 'V9D Camera') { Stop-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue }
+Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+  Where-Object { $_.CommandLine -like '*monitor.js*' } |
+  ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }
+Get-Process go2rtc -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 1
+
 # 3. Background task: starts at boot, restarts if it crashes, log in data\monitor.log
 Write-Host 'Registering background task...'
 $action = New-ScheduledTaskAction -Execute 'cmd.exe' `
@@ -41,8 +49,35 @@ try {
   Write-Host "Monitor did not answer yet - check $dir\data\monitor.log" -ForegroundColor Yellow
 }
 
-# 4. Make it reachable from your phone over Tailscale (HTTPS)
+# 4. Camera relay (go2rtc): pulls the printers' WebRTC camera streams on the local
+#    network and re-serves them to the phone over Tailscale.
+Write-Host 'Setting up camera relay...'
+$camTask = 'V9D Camera'
+$g2rDir = Join-Path $dir 'go2rtc'
+$g2rExe = Join-Path $g2rDir 'go2rtc.exe'
+New-Item -ItemType Directory -Force -Path $g2rDir | Out-Null
+if (-not (Test-Path $g2rExe)) {
+  $zip = Join-Path $env:TEMP 'go2rtc_win64.zip'
+  Invoke-WebRequest 'https://github.com/AlexxIT/go2rtc/releases/download/v1.9.14/go2rtc_win64.zip' -OutFile $zip -UseBasicParsing
+  Expand-Archive $zip -DestinationPath $g2rDir -Force
+  Remove-Item $zip
+}
+$printers = Invoke-RestMethod 'https://v9dproducts.github.io/v9d/printers.json'
+$yaml = @('api:', '  listen: "127.0.0.1:1984"', 'rtsp:', '  listen: ""', 'streams:')
+foreach ($p in $printers) {
+  if ($p.camera -eq 'creality') { $yaml += "  $($p.id): webrtc:http://$($p.ip):8000/call/webrtc_local#format=creality" }
+}
+Set-Content -Path (Join-Path $g2rDir 'go2rtc.yaml') -Value $yaml -Encoding ascii
+
+$camAction = New-ScheduledTaskAction -Execute 'cmd.exe' `
+  -Argument "/c `"`"$g2rExe`" -config go2rtc.yaml >> go2rtc.log 2>&1`"" -WorkingDirectory $g2rDir
+Unregister-ScheduledTask -TaskName $camTask -Confirm:$false -ErrorAction SilentlyContinue
+Register-ScheduledTask -TaskName $camTask -Action $camAction -Trigger $trigger -Settings $settings -Principal $principal | Out-Null
+Start-ScheduledTask -TaskName $camTask
+
+# 5. Make both reachable from your phone over Tailscale (HTTPS)
 Write-Host 'Publishing on your Tailscale network...'
 & tailscale serve --bg 8787
+& tailscale serve --bg --https=8443 1984
 Write-Host ''
-Write-Host 'Done. Open V9D on your iPhone -> 3D Printers -> bell icon -> Enable notifications.' -ForegroundColor Green
+Write-Host 'Done. Open V9D on your iPhone -> 3D Printers. Bell icon = notifications, Camera = live view.' -ForegroundColor Green
