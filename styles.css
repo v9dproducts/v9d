@@ -1,0 +1,108 @@
+:root {
+  --bg: #0b0f16;
+  --surface: #151b26;
+  --surface-2: #1d2532;
+  --line: #273142;
+  --text: #f2f5f9;
+  --muted: #8c97a8;
+  --accent: #ff7a1a;
+  --danger: #ff5a5f;
+  --radius: 16px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+body { min-height: 100dvh; overscroll-behavior-y: none; }
+button, input, textarea { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+
+/* Top bar */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 8px;
+  padding: calc(var(--safe-top) + 10px) 16px 10px;
+  background: rgba(11, 15, 22, .85);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar h1 { flex: 1; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.back { background: none; border: 0; padding: 4px; margin-left: -6px; color: var(--accent); display: grid; place-items: center; }
+.topbar-actions { display: flex; gap: 8px; }
+.icon-btn {
+  border: 0; background: var(--surface-2); color: var(--text);
+  width: 36px; height: 36px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 22px; line-height: 1;
+}
+
+main { padding: 16px 16px calc(var(--safe-bottom) + 32px); max-width: 720px; margin: 0 auto; }
+
+/* Home tiles */
+.tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.tile {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 16px; min-height: 120px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  text-decoration: none; color: var(--text);
+}
+.tile:active { transform: scale(.98); }
+.tile .glyph { font-size: 28px; }
+.tile .name { font-weight: 600; }
+.tile .sub { color: var(--muted); font-size: 13px; }
+.tile.soon { opacity: .45; pointer-events: none; border-style: dashed; }
+
+/* Lists / cards */
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px 16px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 12px;
+}
+.card .info { flex: 1; min-width: 0; }
+.card .title { font-weight: 600; }
+.card .meta { color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .ip { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; color: var(--text); opacity: .85; }
+.btn {
+  border: 0; border-radius: 10px; padding: 9px 14px;
+  background: var(--surface-2); color: var(--text); font-weight: 600; font-size: 14px;
+  text-decoration: none; white-space: nowrap;
+}
+.btn.primary { background: var(--accent); color: #111; }
+.btn.danger { background: transparent; color: var(--danger); }
+.btn.block { width: 100%; padding: 13px; font-size: 16px; }
+
+.empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+.hint { color: var(--muted); font-size: 13px; margin: 18px 4px 0; }
+.toolbar { display: flex; gap: 8px; margin-top: 18px; }
+.toolbar .btn { flex: 1; text-align: center; }
+
+/* Bottom sheet */
+.sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 20; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
+  max-width: 720px; margin: 0 auto;
+  background: var(--surface); border-top-left-radius: 20px; border-top-right-radius: 20px;
+  padding: 20px 16px calc(var(--safe-bottom) + 20px);
+  max-height: 90dvh; overflow-y: auto;
+  animation: up .2s ease-out;
+}
+@keyframes up { from { transform: translateY(100%); } to { transform: none; } }
+.sheet h2 { margin: 0 0 14px; font-size: 18px; }
+.field { display: block; margin-bottom: 12px; }
+.field span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.field input, .field textarea {
+  width: 100%; padding: 12px; border-radius: 10px;
+  background: var(--bg); border: 1px solid var(--line);
+  font-size: 16px; /* 16px prevents iOS zoom on focus */
+}
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--accent); }
+.sheet .row { display: flex; gap: 8px; margin-top: 6px; }
+.sheet .row .btn { flex: 1; padding: 13px; }
