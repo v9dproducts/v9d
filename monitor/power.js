@@ -23,7 +23,9 @@ const PROFILES = {
     holdW: 6,           // steppers holding position when idle
     fansW: { part: 8, aux: 15, exhaust: 6, hotend: 3, chamber: 4 },
     psuEff: 0.88,
-    typicalPrintW: 190, // used to estimate prints from before monitoring started
+    typicalPrintW: 215, // average while printing PLA (live readings 200–229 W); used for
+                        // prints from before monitoring started, until measured prints exist
+    heatupWh: 30,       // bed warm-up at full power at the start of each print
   },
   'K1 Max': {
     bedW: 800, hotendW: 60,
@@ -35,7 +37,8 @@ const PROFILES = {
     bedLossWPerK: 5.2,      // K2 Plus measured ~7 W/K, scaled to the K1 Max's smaller bed
     hotendLossWPerK: 0.17,  // from K2 Plus hotend duty at 220 °C
     meltWPerMm3s: 0.45,     // heating + melting PLA, per mm³/s of flow
-    typicalPrintW: 175,
+    typicalPrintW: 235,     // model at PLA settings: 212 W (bed 50 °C) – 264 W (bed 60 °C)
+    heatupWh: 25,
   },
 };
 

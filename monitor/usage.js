@@ -81,9 +81,9 @@ class Usage {
       const printH = (r.printSec || 0) / 3600;
       const pausedH = Math.max(0, ((r.totalSec || r.printSec || 0) - (r.printSec || 0)) / 3600);
       const prof = profileFor(cfg);
-      const estWh = this.typicalPrintW(cfg) * printH + (prof.electronicsW + prof.holdW) / prof.psuEff * pausedH;
+      const estWh = (prof.heatupWh || 0) + this.typicalPrintW(cfg) * printH + (prof.electronicsW + prof.holdW) / prof.psuEff * pausedH;
       // Partly measured print: add an estimate for the part before monitoring started.
-      const missedWh = session?.partial ? this.typicalPrintW(cfg) * Math.max(0, session.start - r.start) / 3600000 : 0;
+      const missedWh = session?.partial ? (prof.heatupWh || 0) + this.typicalPrintW(cfg) * Math.max(0, session.start - r.start) / 3600000 : 0;
       if (!this.jobs[id]) added++;
       this.jobs[id] = {
         id, printer: cfg.id, file: r.file, material, status: r.status,
