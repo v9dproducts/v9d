@@ -174,6 +174,7 @@ const MODULES = [
 function renderHome() {
   setHeader('V9D');
   $('#view').innerHTML = `
+    <div class="brand"><img src="icons/logo-banner.png" alt="V9D — Think. Make. V9D."></div>
     <div class="tiles">
       ${MODULES.map((m) => `
         <a class="tile" href="#/${m.route}">

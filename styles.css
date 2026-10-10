@@ -47,6 +47,8 @@ button, input, textarea { font: inherit; color: inherit; }
 main { padding: 16px 16px calc(var(--safe-bottom) + 32px); max-width: 720px; margin: 0 auto; }
 
 /* Home tiles */
+.brand { background: #fff; border-radius: var(--radius); padding: 18px 24px; margin-bottom: 16px; text-align: center; }
+.brand img { display: block; width: 100%; max-width: 360px; height: auto; margin: 0 auto; }
 .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .tile {
   display: flex; flex-direction: column; gap: 10px;
