@@ -327,6 +327,7 @@ const MODULES = [
   { route: 'printers', name: '3D Printers', glyph: '🖨️', sub: 'Network printers', render: () => Printers.render() },
   { route: 'usage', name: 'Usage & Costs', glyph: '💷', sub: 'Material & electricity', render: () => UsagePage.render() },
   { route: 'power', name: 'Live Power', glyph: '⚡', sub: 'Watts right now', render: () => PowerPage.render() },
+  { route: 'maintenance', name: 'Maintenance', glyph: '🔧', sub: 'Parts & service', render: () => MaintPage.render() },
 ];
 
 function renderHome() {

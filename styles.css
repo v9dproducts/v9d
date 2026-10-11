@@ -182,3 +182,21 @@ h3.day { font-size: 13px; color: var(--muted); font-weight: 600; margin: 18px 4p
 .bar { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 .temps { margin-top: 8px; }
+
+/* Maintenance */
+.maint { display: block; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 10px 0 0; color: var(--text); }
+.maint-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.maint-name { font-weight: 600; }
+.maint-state { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.maint-state.ok { color: #3ccf7a; }
+.maint-state.soon { color: #f5b942; }
+.maint-state.due { color: var(--danger); }
+.maint-bar { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; margin: 8px 0 6px; }
+.maint-bar i { display: block; height: 100%; border-radius: 4px; background: #3ccf7a; }
+.maint.soon .maint-bar i { background: #f5b942; }
+.maint.due .maint-bar i { background: var(--danger); }
+.maint.due { border-color: rgba(255, 90, 95, .5); }
+#performBtn { margin: 4px 0 6px; }
+.checks { margin-bottom: 12px; }
+.check { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }

@@ -8,6 +8,7 @@ const http = require('http');
 const webpush = require('web-push');
 const { MOONRAKER_OBJECTS, estimateMoonraker, estimateCreality, profileFor, standbyW } = require('./power');
 const { Usage, moonrakerHistory, crealityHistory } = require('./usage');
+const { Maintenance } = require('./maintenance');
 
 const DATA = path.join(__dirname, 'data');
 fs.mkdirSync(DATA, { recursive: true });
@@ -65,6 +66,7 @@ async function notify(title, body, tag) {
 // ---------- Usage & power ----------
 const usage = new Usage(DATA, log);
 usage.onSessionEnd = (id) => setTimeout(() => syncHistory(id), 20000);
+const maintenance = new Maintenance(DATA, usage, (...a) => notify(...a), log);
 
 // Motors stay energised for a while after a print, then the firmware switches them off.
 function holding(id, state) {
@@ -86,6 +88,7 @@ async function syncHistory(id) {
   if (!p?.watcher.history) return;
   try { usage.mergeHistory(p.cfg, await p.watcher.history()); }
   catch (err) { log(`${p.cfg.name}: history sync failed (${err.message})`); }
+  maintenance.check(printers);
 }
 
 // ---------- Printer state & events ----------
@@ -317,6 +320,16 @@ http.createServer(async (req, res) => {
       }
       return send(res, 200, { jobs: usage.jobList(), days: usage.days, since: usage.since, printers: profiles }, origin);
     }
+    if (req.method === 'GET' && url.pathname === '/api/maintenance') {
+      return send(res, 200, maintenance.report(printers), origin);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/maintenance/perform') {
+      const { printer, items, date, note } = await readBody(req);
+      const p = printers.get(printer);
+      if (!p || !Array.isArray(items)) return send(res, 400, { error: 'bad request' }, origin);
+      maintenance.perform(p.cfg, items, date, note);
+      return send(res, 200, maintenance.report(printers), origin);
+    }
     if (req.method === 'GET' && url.pathname === '/api/push-key') {
       return send(res, 200, { publicKey: vapid.publicKey }, origin);
     }
@@ -351,5 +364,6 @@ http.createServer(async (req, res) => {
 loadPrinters().then(() => setTimeout(() => { for (const id of printers.keys()) syncHistory(id); }, 10000));
 setInterval(loadPrinters, 10 * 60 * 1000);
 setInterval(() => { for (const id of printers.keys()) syncHistory(id); }, 30 * 60 * 1000);
+setInterval(() => maintenance.check(printers), 60 * 60 * 1000); // day-based items
 process.on('SIGINT', () => { usage.dirty = true; usage.save(); process.exit(0); });
 process.on('SIGTERM', () => { usage.dirty = true; usage.save(); process.exit(0); });
