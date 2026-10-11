@@ -274,7 +274,9 @@ const Alerts = {
       body = `<p class="note">To get notifications on iPhone, V9D must be opened from your Home Screen: in Safari tap <b>Share → Add to Home Screen</b>, then open V9D from the icon.</p>`;
     } else if (sub) {
       body = `<p class="note ok">Notifications are <b>on</b> for this device. You'll be told when a print finishes, fails, is cancelled or paused, or a printer goes offline mid-print.</p>
-        <div class="row"><button class="btn" id="alertTest">Send test</button><button class="btn danger" id="alertOff">Turn off</button></div>`;
+        <div class="row"><button class="btn" id="alertTest">Send test</button><button class="btn danger" id="alertOff">Turn off</button></div>
+        <p class="note">Preview every kind of alert, worded exactly like the real ones:</p>
+        <div class="row"><button class="btn" id="alertTestMaint">Maintenance alerts</button><button class="btn" id="alertTestPrints">Print alerts</button></div>`;
     } else {
       body = `<p class="note">Get a notification when a print finishes, fails, is cancelled or paused, or a printer goes offline mid-print. Tailscale must be on the first time.</p>
         <button class="btn primary block" id="alertOn">Enable notifications</button>`;
@@ -302,12 +304,19 @@ const Alerts = {
         this.open();
       } catch (e) { msg(e.message); on.disabled = false; }
     };
-    const test = $('#alertTest');
-    if (test) test.onclick = async () => {
+    const sendTest = async (kind) => {
       msg('Sending…');
-      try { await Monitor.post('/api/test', { endpoint: sub.endpoint }); msg('Sent — it should arrive in a few seconds.'); }
-      catch (e) { msg(/404/.test(e.message) ? 'The monitor doesn’t know this phone — turn notifications off and on again.' : 'Can’t reach the V9D monitor. Is Tailscale on?'); }
+      try {
+        const r = await Monitor.post('/api/test', { endpoint: sub.endpoint, kind });
+        msg(r.sent > 1 ? `Sent ${r.sent} sample notifications — they’ll arrive over the next few seconds.` : 'Sent — it should arrive in a few seconds.');
+      } catch (e) {
+        msg(/404/.test(e.message) ? 'The monitor doesn’t know this phone — turn notifications off and on again.' : 'Can’t reach the V9D monitor. Is Tailscale on?');
+      }
     };
+    for (const [id, kind] of [['#alertTest', 'basic'], ['#alertTestMaint', 'maintenance'], ['#alertTestPrints', 'prints']]) {
+      const b = $(id);
+      if (b) b.onclick = () => sendTest(kind);
+    }
     const off = $('#alertOff');
     if (off) off.onclick = async () => {
       await Monitor.post('/api/unsubscribe', { endpoint: sub.endpoint }).catch(() => {});

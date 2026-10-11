@@ -121,17 +121,41 @@ class Maintenance {
         const st = this.state[p.cfg.id]?.[item.id];
         if (!st?.lastDone) continue; // reminders start once the item has been logged
         if (s.status === 'ok' || st.notified === s.status || (st.notified === 'due' && s.status === 'soon')) continue;
-        const left = describeLeft(s);
-        if (s.status === 'soon') this.notify(`🔧 ${p.cfg.name}: ${item.name}`, `${item.kind === 'replace' ? 'Needs to be replaced' : 'Due'} soon — ${left}.`, `maint-${p.cfg.id}-${item.id}`);
-        else this.notify(`🔧 ${p.cfg.name}: ${item.name}`, item.kind === 'replace'
-          ? `Needs to be replaced now — ${describeLimit(s)} reached.`
-          : `Due now — ${describeLimit(s)} since it was last done.`, `maint-${p.cfg.id}-${item.id}`);
+        const m = maintMessage(p.cfg.name, item, s);
+        this.notify(m.title, m.body, `maint-${p.cfg.id}-${item.id}`);
         st.notified = s.status;
         changed = true;
       }
     }
     if (changed) this.save();
   }
+}
+
+function maintMessage(printerName, item, s) {
+  const title = `🔧 ${printerName}: ${item.name}`;
+  if (s.status === 'soon') return { title, body: `${item.kind === 'replace' ? 'Needs to be replaced' : 'Due'} soon — ${describeLeft(s)}.` };
+  return { title, body: item.kind === 'replace'
+    ? `Needs to be replaced now — ${describeLimit(s)} reached.`
+    : `Due now — ${describeLimit(s)} since it was last done.` };
+}
+
+// One example of every kind of maintenance reminder (replace/service × soon/due × hours/kg/days),
+// worded exactly as the real ones.
+function sampleMessages(printers) {
+  const seen = new Set(), out = [];
+  for (const [, p] of printers) {
+    for (const item of catalogFor(p.cfg)) {
+      const [unit, limit] = Object.entries(item.interval)[0];
+      const soonLeft = unit === 'hours' ? Math.max(10, limit * 0.1) : unit === 'kg' ? 0.5 : limit >= 30 ? 7 : 1;
+      for (const status of ['soon', 'due']) {
+        const key = `${item.kind}-${status}-${unit}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(maintMessage(p.cfg.name, item, { status, unit, limit, left: status === 'soon' ? soonLeft : 0 }));
+      }
+    }
+  }
+  return out;
 }
 
 function describeLeft(s) {
@@ -143,4 +167,4 @@ function describeLimit(s) {
   return s.unit === 'hours' ? `${s.limit} print hours` : s.unit === 'kg' ? `${s.limit} kg of filament` : `${s.limit} days`;
 }
 
-module.exports = { Maintenance, CATALOG };
+module.exports = { Maintenance, CATALOG, sampleMessages };

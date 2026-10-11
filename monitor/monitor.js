@@ -8,7 +8,7 @@ const http = require('http');
 const webpush = require('web-push');
 const { MOONRAKER_OBJECTS, estimateMoonraker, estimateCreality, profileFor, standbyW } = require('./power');
 const { Usage, moonrakerHistory, crealityHistory } = require('./usage');
-const { Maintenance } = require('./maintenance');
+const { Maintenance, sampleMessages } = require('./maintenance');
 
 const DATA = path.join(__dirname, 'data');
 fs.mkdirSync(DATA, { recursive: true });
@@ -108,6 +108,23 @@ function duration(sec) {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
+// Wording of print alerts (shared with the test samples).
+function printMessage(event, name, s) {
+  const job = prettyFile(s.file);
+  switch (event) {
+    case 'complete': return { title: `✅ ${name} finished`, body: [job, duration(s.printTime)].filter(Boolean).join(' · ') || 'Print complete' };
+    case 'error': return { title: `❌ ${name} error`, body: s.message || (s.errorCode ? `Error code ${s.errorCode}` : job ? `Print failed: ${job}` : 'The printer reported an error') };
+    case 'cancelled': return { title: `⏹ ${name} cancelled`, body: job || 'Print cancelled' };
+    case 'paused': return { title: `⏸ ${name} paused`, body: s.message || (job ? `${job} is paused — check filament` : 'Print paused') };
+    case 'offline': return { title: `⚠️ ${name} went offline`, body: `Lost connection during ${job || 'a print'}` };
+  }
+}
+function notifyPrint(event, id, name, s) {
+  const m = printMessage(event, name, s);
+  const tag = { complete: 'done', error: 'error', cancelled: 'cancel', paused: 'pause', offline: 'offline' }[event];
+  notify(m.title, m.body, `${id}-${tag}`);
+}
+
 // Called by watchers with a fresh reading.
 function update(id, next) {
   const p = printers.get(id);
@@ -121,17 +138,12 @@ function update(id, next) {
     log(`${name}: ${prev.state} -> ${s.state}`);
     const was = prev.state;
     const active = was === 'printing' || was === 'paused';
-    if (s.state === 'complete' && active) {
-      notify(`✅ ${name} finished`, [job, duration(s.printTime)].filter(Boolean).join(' · ') || 'Print complete', `${id}-done`);
-    } else if (s.state === 'error') {
-      notify(`❌ ${name} error`, s.message || (job ? `Print failed: ${job}` : 'The printer reported an error'), `${id}-error`);
-    } else if (s.state === 'cancelled' && active) {
-      notify(`⏹ ${name} cancelled`, job || 'Print cancelled', `${id}-cancel`);
-    } else if (s.state === 'paused' && was === 'printing') {
-      notify(`⏸ ${name} paused`, s.message || (job ? `${job} is paused — check filament` : 'Print paused'), `${id}-pause`);
-    }
+    if (s.state === 'complete' && active) notifyPrint('complete', id, name, s);
+    else if (s.state === 'error') notifyPrint('error', id, name, { ...s, errorCode: '' });
+    else if (s.state === 'cancelled' && active) notifyPrint('cancelled', id, name, s);
+    else if (s.state === 'paused' && was === 'printing') notifyPrint('paused', id, name, s);
   } else if (s.errorCode && s.errorCode !== prev.errorCode && s.state !== 'error') {
-    notify(`❌ ${name} error`, s.message || `Error code ${s.errorCode}`, `${id}-error`);
+    notifyPrint('error', id, name, { ...s, file: '' });
   }
 }
 
@@ -146,7 +158,7 @@ function markOfflineIfStale(id) {
     if (prev.state) {
       log(`${p.cfg.name}: ${prev.state} -> offline`);
       const active = prev.state === 'printing' || prev.state === 'paused';
-      if (active) notify(`⚠️ ${p.cfg.name} went offline`, `Lost connection during ${prettyFile(prev.file) || 'a print'}`, `${id}-offline`);
+      if (active) notifyPrint('offline', id, p.cfg.name, prev);
     }
   }
 }
@@ -348,11 +360,29 @@ http.createServer(async (req, res) => {
       return send(res, 200, { ok: true }, origin);
     }
     if (req.method === 'POST' && url.pathname === '/api/test') {
-      const { endpoint } = await readBody(req);
+      const { endpoint, kind } = await readBody(req);
       const sub = subscriptions.find((s) => s.endpoint === endpoint);
       if (!sub) return send(res, 404, { error: 'not subscribed' }, origin);
-      await webpush.sendNotification(sub, JSON.stringify({ title: '🔔 V9D', body: 'Notifications are working.', tag: 'test', url: './#/printers' }));
-      return send(res, 200, { ok: true }, origin);
+      let messages = [{ title: '🔔 V9D', body: 'Notifications are working.' }];
+      if (kind === 'maintenance') messages = sampleMessages(printers);
+      if (kind === 'prints') {
+        const [id, p] = [...printers][0] || ['x', { cfg: { name: 'Printer' } }];
+        const sample = { file: 'obj_1_Benchy.stl_PLA_1h.gcode', printTime: 3725 };
+        messages = [
+          printMessage('complete', p.cfg.name, sample),
+          printMessage('error', p.cfg.name, { ...sample, message: 'Heater extruder not heating at expected rate' }),
+          printMessage('paused', p.cfg.name, sample),
+          printMessage('cancelled', p.cfg.name, sample),
+          printMessage('offline', p.cfg.name, sample),
+        ];
+      }
+      // Separate tags so each test shows as its own notification; small gap keeps the order.
+      for (const [n, m] of messages.entries()) {
+        const url = kind === 'maintenance' ? './#/maintenance' : './#/printers';
+        await webpush.sendNotification(sub, JSON.stringify({ title: m.title, body: `${m.body} (test)`, tag: `test-${kind || 'basic'}-${n}`, url }));
+        await new Promise((r) => setTimeout(r, 400));
+      }
+      return send(res, 200, { ok: true, sent: messages.length }, origin);
     }
     send(res, 404, { error: 'not found' }, origin);
   } catch (err) {
