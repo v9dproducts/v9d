@@ -9,6 +9,7 @@ const webpush = require('web-push');
 const { MOONRAKER_OBJECTS, estimateMoonraker, estimateCreality, profileFor, standbyW } = require('./power');
 const { Usage, moonrakerHistory, crealityHistory } = require('./usage');
 const { Maintenance, sampleMessages } = require('./maintenance');
+const { Trends } = require('./trends');
 
 const DATA = path.join(__dirname, 'data');
 fs.mkdirSync(DATA, { recursive: true });
@@ -22,7 +23,7 @@ const config = {
 };
 
 function readJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+  try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); } catch { return fallback; }
 }
 function writeJson(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2));
@@ -67,6 +68,7 @@ async function notify(title, body, tag) {
 const usage = new Usage(DATA, log);
 usage.onSessionEnd = (id) => setTimeout(() => syncHistory(id), 20000);
 const maintenance = new Maintenance(DATA, usage, (...a) => notify(...a), log);
+const trends = new Trends(DATA, config, log);
 
 // Motors stay energised for a while after a print, then the firmware switches them off.
 function holding(id, state) {
@@ -341,6 +343,16 @@ http.createServer(async (req, res) => {
       if (!p || !Array.isArray(items)) return send(res, 400, { error: 'bad request' }, origin);
       maintenance.perform(p.cfg, items, date, note);
       return send(res, 200, maintenance.report(printers), origin);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/trends') {
+      return send(res, 200, await trends.report(), origin);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/trends/refresh') {
+      if (!trends.apiKey()) return send(res, 400, { error: 'no API key' }, origin);
+      if (trends.running) return send(res, 409, { error: 'already running' }, origin);
+      if (Date.now() - (trends.state.updatedAt || 0) < 30 * 60 * 1000) return send(res, 429, { error: 'updated less than 30 minutes ago' }, origin);
+      trends.run().catch(() => {});
+      return send(res, 202, { ok: true }, origin);
     }
     if (req.method === 'GET' && url.pathname === '/api/push-key') {
       return send(res, 200, { publicKey: vapid.publicKey }, origin);

@@ -20,6 +20,18 @@ if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
 Pop-Location
 New-Item -ItemType Directory -Force -Path (Join-Path $dir 'data') | Out-Null
 
+# Trend Radar: Anthropic API key, stored only in this PC's config.json (never uploaded).
+$cfgPath = Join-Path $dir 'config.json'
+$cfg = if (Test-Path $cfgPath) { Get-Content $cfgPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+if (-not $cfg.anthropicApiKey) {
+  $key = Read-Host 'Paste your Anthropic API key for Trend Radar (or press Enter to skip)'
+  if ($key.Trim()) {
+    $cfg | Add-Member -NotePropertyName anthropicApiKey -NotePropertyValue $key.Trim() -Force
+    $cfg | ConvertTo-Json | Set-Content -Path $cfgPath -Encoding ascii
+    Write-Host 'API key saved.'
+  }
+}
+
 # Stop copies from an earlier install so the new ones can take over their ports.
 foreach ($t in 'V9D Monitor', 'V9D Camera') { Stop-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue }
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" |

@@ -215,3 +215,36 @@ h3.day { font-size: 13px; color: var(--muted); font-weight: 600; margin: 18px 4p
 .help-links { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 10px; }
 .help-links .btn { text-align: center; }
 .sheet #howTo { margin-bottom: 10px; }
+
+/* Trend Radar */
+.banner.warn { color: var(--text); background: rgba(255, 90, 95, .12); border: 1px solid rgba(255, 90, 95, .35); }
+.radar-status { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 0 2px 10px; }
+.radar-summary { margin: 6px 0 0; font-size: 15px; line-height: 1.45; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 3px; margin: 4px 0 12px; }
+.seg button { border: 0; background: transparent; color: var(--muted); font-weight: 600; font-size: 14px; padding: 8px 4px; border-radius: 9px; }
+.seg button.on { background: var(--surface-2); color: var(--text); }
+.idea { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; }
+.idea-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.idea-title { font-weight: 700; font-size: 16px; }
+.idea-event { color: var(--accent); font-size: 13px; font-weight: 600; margin-top: 3px; }
+.idea-desc { margin: 6px 0 8px; font-size: 14px; }
+.idea-grid { display: grid; grid-template-columns: 78px 1fr; gap: 3px 10px; font-size: 13px; }
+.idea-grid span { color: var(--muted); }
+.idea-grid b { font-weight: 600; }
+.idea details { margin-top: 8px; }
+.idea summary { color: var(--accent); font-size: 13px; cursor: pointer; }
+.tag-pill { flex: none; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 3px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.tag-pill.high { color: #3ccf7a; }
+.tag-pill.medium { color: #f5b942; }
+.tag-pill.low { color: var(--muted); }
+.sources { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; font-size: 13px; }
+.sources a { color: var(--accent); text-decoration: none; }
+.hotdate { display: flex; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.hd-date { flex: none; width: 42px; text-align: center; }
+.hd-date b { display: block; font-size: 22px; line-height: 1.1; }
+.hd-date span { font-size: 12px; color: var(--muted); }
+.hd-main { flex: 1; min-width: 0; }
+.hd-name { font-weight: 600; }
+.lb { display: inline-block; font-size: 13px; font-weight: 600; margin: 3px 0; color: var(--text); }
+.lb.now { color: var(--accent); }
+.lb.past { color: var(--muted); font-weight: 500; }

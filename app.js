@@ -337,6 +337,7 @@ const MODULES = [
   { route: 'usage', name: 'Usage & Costs', glyph: '💷', sub: 'Material & electricity', render: () => UsagePage.render() },
   { route: 'power', name: 'Live Power', glyph: '⚡', sub: 'Watts right now', render: () => PowerPage.render() },
   { route: 'maintenance', name: 'Maintenance', glyph: '🔧', sub: 'Parts & service', render: () => MaintPage.render() },
+  { route: 'radar', name: 'Trend Radar', glyph: '📡', sub: 'What to make next', render: () => RadarPage.render() },
 ];
 
 function renderHome() {
