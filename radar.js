@@ -1,6 +1,10 @@
 // V9D — Trend Radar: what's selling, upcoming hot dates and print ideas. The research runs on
 // the V9D monitor every morning at 06:00 UK time (/api/trends).
 
+// The API bills in US dollars; this approximate rate shows costs in pounds.
+const USD_TO_GBP = 0.75;
+const approxGBP = (gbp) => gbp < 0.995 ? `${Math.max(1, Math.round(gbp * 100))}p` : `£${gbp.toFixed(2)}`;
+
 const RadarPage = {
   data: null,
   tab: 'ideas',
@@ -35,7 +39,7 @@ const RadarPage = {
   draw() {
     const d = this.data, r = d.research;
     const status = d.running ? 'Researching now — this takes a few minutes…'
-      : d.updatedAt ? `Updated ${fmt.date(d.updatedAt)} ${fmt.time(d.updatedAt)} · next update 06:00 UK`
+      : d.updatedAt ? `Updated ${fmt.date(d.updatedAt)} ${fmt.time(d.updatedAt)}${d.cost?.usd ? ` · cost ~${approxGBP(d.cost.usd * USD_TO_GBP)}` : ''} · next update 06:00 UK`
       : d.hasKey ? 'First update runs shortly.' : '';
     $('#view').innerHTML = `
       ${!d.hasKey ? `<p class="banner">Hot dates work now. For trending products and print ideas, add an Anthropic API key on the home PC (the installer asks for it).</p>` : ''}
@@ -58,14 +62,33 @@ const RadarPage = {
     else this.drawIdeas();
   },
 
-  async refresh() {
-    if (!confirm('Run the research now? Each run uses your Anthropic API credit (roughly 50p–£1).')) return;
-    try {
-      await Monitor.post('/api/trends/refresh', {});
-      this.data.running = true; this.draw(); this.poll();
-    } catch (e) {
-      alert(/429/.test(e.message) ? 'It was updated less than 30 minutes ago.' : /409/.test(e.message) ? 'Already running.' : `Couldn’t start: ${e.message}`);
-    }
+  // Cost of one run in pounds: the last run's actual cost if known, otherwise an estimate.
+  runCost() {
+    const usd = this.data.cost?.usd;
+    return usd ? { gbp: usd * USD_TO_GBP, measured: true } : { gbp: 0.55, measured: false };
+  },
+
+  refresh() {
+    const c = this.runCost();
+    openSheet(`
+      <h2>Refresh Trend Radar now?</h2>
+      <p class="help-warn">💷 This uses your Anthropic API credit — about <b>${approxGBP(c.gbp)}</b> per run${c.measured ? ' (based on the last run)' : ' (estimate — the first run will show the real cost)'}.</p>
+      <p class="note">It already updates automatically, so you only need this when something urgent comes up. It takes a few minutes.</p>
+      <p class="note" id="refreshMsg"></p>
+      <div class="row"><button class="btn" id="cancelSheet">Cancel</button><button class="btn primary" id="runNow">Run now · ~${approxGBP(c.gbp)}</button></div>`);
+    $('#cancelSheet').onclick = closeSheet;
+    $('#runNow').onclick = async () => {
+      $('#runNow').disabled = true;
+      try {
+        await Monitor.post('/api/trends/refresh', {});
+        closeSheet();
+        this.data.running = true; this.draw(); this.poll();
+      } catch (e) {
+        $('#refreshMsg').textContent = /429/.test(e.message) ? 'It was updated less than 30 minutes ago — try again later.'
+          : /409/.test(e.message) ? 'It’s already running.' : `Couldn’t start: ${e.message}`;
+        $('#runNow').disabled = false;
+      }
+    };
   },
 
   drawIdeas() {

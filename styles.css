@@ -248,3 +248,4 @@ h3.day { font-size: 13px; color: var(--muted); font-weight: 600; margin: 18px 4p
 .lb { display: inline-block; font-size: 13px; font-weight: 600; margin: 3px 0; color: var(--text); }
 .lb.now { color: var(--accent); }
 .lb.past { color: var(--muted); font-weight: 500; }
+.radar-status .linkbtn { white-space: nowrap; }
