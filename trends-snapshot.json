@@ -1,0 +1,393 @@
+{
+  "snapshot": true,
+  "date": "2026-10-11",
+  "summary": "UK demand is turning to Christmas: personalised gifts (name baubles, stocking tags) are Etsy UK's strongest gifting category and UK searches peak from October to mid-December, so get Christmas listings live by 30 Oct. Year-round, print-in-place articulated animals and fidget toys keep leading downloads and TikTok views — plan a Black Friday bundle of them by 6 Nov.",
+  "trending": [
+    {
+      "name": "Personalised Christmas ornaments & name tags",
+      "region": "UK",
+      "category": "Seasonal gifts",
+      "why": "Etsy UK's Christmas gift-trend pages are led by personalised items (custom ornaments, stocking and gift name tags), many priced under £15. UK Christmas searches run from September to about 15 December, peaking from October.",
+      "priceRange": "£4–15",
+      "printable": true,
+      "printNotes": "Ideal for the K2 Plus in two colours (name in contrast). Small, fast prints — good margin per gram.",
+      "sources": [
+        { "title": "Etsy UK — Christmas gift trends", "url": "https://www.etsy.com/uk/market/christmas_gift_trends" },
+        { "title": "What sells best on Etsy in 2026 (UK forecast)", "url": "https://www.topdowntrading.co.uk/blog/what-sells-best-on-etsy-in-2026-uk-trend-forecast-niche-ideas.html" }
+      ]
+    },
+    {
+      "name": "Articulated print-in-place animals",
+      "region": "UK",
+      "category": "Toys & gifts",
+      "why": "Etsy UK's best-selling 3D-printed pages are full of articulated animals (dragons, axolotls, cats, sharks) with hundreds to thousands of reviews. The articulated dragon still leads MakerWorld and Printables download counts in 2026.",
+      "priceRange": "£8–25",
+      "printable": true,
+      "printNotes": "Print-in-place in silk or multi-colour PLA. Many popular designs are non-commercial — buy the designer's commercial licence or design your own.",
+      "sources": [
+        { "title": "Etsy UK — best selling 3D printed items", "url": "https://www.etsy.com/uk/market/best_selling_3d_printed_items" },
+        { "title": "The 25 best 3D prints of 2026 (ranked)", "url": "https://www.forgely3d.com/blogs/news/the-25-best-3d-prints-of-2026-ranked" }
+      ]
+    },
+    {
+      "name": "Planters & vases",
+      "region": "UK",
+      "category": "Home décor",
+      "why": "Planter designs and planter bundles appear repeatedly on Etsy UK's 3D-printing bestseller pages; vases and planters are consistently listed among the best-selling home-décor prints.",
+      "priceRange": "£8–25",
+      "printable": true,
+      "printNotes": "Use PETG for anything holding water or soil. Vase mode prints fast on both printers.",
+      "sources": [
+        { "title": "Etsy UK — best sellers 3D printing", "url": "https://www.etsy.com/uk/market/best_sellers_3d_printing" },
+        { "title": "eufyMake — best-selling 3D printed items 2026", "url": "https://www.eufymake.com/blogs/business-ideas/best-3d-print-sell-profitable-items" }
+      ]
+    },
+    {
+      "name": "Modern & lithophane lamps",
+      "region": "UK",
+      "category": "Home décor / gifts",
+      "why": "Modern lamp designs are among the most-listed items on Etsy UK's 3D-print bestseller pages; lithophane lamps and snowflake lithophanes are popular personalised gifts in winter.",
+      "priceRange": "£15–40",
+      "printable": true,
+      "printNotes": "Needs a cheap LED/lamp kit (easy to buy). White PLA for lithophanes.",
+      "sources": [
+        { "title": "Etsy UK — best selling items 3D print", "url": "https://www.etsy.com/uk/market/best_selling_items_3d_print" },
+        { "title": "MyMiniFactory — snowflake lithophane lamp", "url": "https://www.myminifactory.com/object/3d-print-snowflake-lithophane-lamp-436236" }
+      ]
+    },
+    {
+      "name": "Tabletop gaming accessories",
+      "region": "UK",
+      "category": "Hobby",
+      "why": "eBay's 3D-printed best sellers skew to hobbyists and collectors: tabletop miniatures, dice towers, card boxes and board-game insert organisers.",
+      "priceRange": "£10–40",
+      "printable": true,
+      "printNotes": "Avoid branded game names/logos. Insert organisers for popular games sell well but must not copy trademarked artwork.",
+      "sources": [
+        { "title": "JLC3DP — best 3D prints to sell", "url": "https://jlc3dp.com/blog/best-3d-prints-to-sell" },
+        { "title": "Hyper3D — best-selling 3D printed items (2026)", "url": "https://hyper3d.ai/blog/best-selling-3d-printed-items" }
+      ]
+    },
+    {
+      "name": "Fidget toys (gear spinners, infinity cubes)",
+      "region": "Worldwide",
+      "category": "Toys & fidgets",
+      "why": "#1 on a TikTok trend list updated 5 Oct 2026 (943K views for 3D-printed fidget toys; gear fidget spinners 673K). The infinity cube is described as the most-printed fidget worldwide.",
+      "priceRange": "$5–15",
+      "printable": true,
+      "printNotes": "Small, fast, cheap to make — good for bundles and market stalls. Check each design's licence.",
+      "sources": [
+        { "title": "VelocitySpy — trending 3D printing products on TikTok (5 Oct 2026)", "url": "https://www.velocityspy.com/trending/3d-printing/" },
+        { "title": "50 popular 3D printed fidget toys (2026)", "url": "https://www.ka3dp.com/3d-printed-fidget-toys/" }
+      ]
+    },
+    {
+      "name": "Desk & gaming setup accessories",
+      "region": "Worldwide",
+      "category": "Practical",
+      "why": "Rising on TikTok (Oct 2026): game controller stands (28K views), under-desk cup holders (14K) and joystick desk toys (329K). Desk 'buddies' such as highland-cow monitor figures are shown as sellers' best sellers.",
+      "priceRange": "$10–25",
+      "printable": true,
+      "printNotes": "PETG for clamps and holders that take load. Good Christmas gifts for gamers.",
+      "sources": [
+        { "title": "VelocitySpy — trending 3D printing products on TikTok (5 Oct 2026)", "url": "https://www.velocityspy.com/trending/3d-printing/" },
+        { "title": "TikTok — trending 3D prints", "url": "https://www.tiktok.com/discover/trending-3d-prints" }
+      ]
+    },
+    {
+      "name": "3D printed cat beds",
+      "region": "Worldwide",
+      "category": "Pets",
+      "why": "Rising on TikTok in the 5 Oct 2026 snapshot with 404K views.",
+      "priceRange": "$20–45",
+      "printable": true,
+      "printNotes": "Large print — best on the K2 Plus (350 mm). Long print time, so price for the hours.",
+      "sources": [
+        { "title": "VelocitySpy — trending 3D printing products on TikTok (5 Oct 2026)", "url": "https://www.velocityspy.com/trending/3d-printing/" }
+      ]
+    },
+    {
+      "name": "Comic book wall display frames",
+      "region": "Worldwide",
+      "category": "Collectors / décor",
+      "why": "'3D printed comic book wall art' had 657K TikTok views in the 5 Oct 2026 snapshot.",
+      "priceRange": "$15–30",
+      "printable": true,
+      "printNotes": "Sell the frame/display only — no comic characters or logos on the print.",
+      "sources": [
+        { "title": "VelocitySpy — trending 3D printing products on TikTok (5 Oct 2026)", "url": "https://www.velocityspy.com/trending/3d-printing/" }
+      ]
+    },
+    {
+      "name": "Character planters & fan models (Pokémon etc.)",
+      "region": "UK",
+      "category": "Licensed characters",
+      "why": "Pokémon planter packs and Charizard model kits appear on Etsy UK and eBay UK, but they use trademarked characters.",
+      "priceRange": "£7–20",
+      "printable": false,
+      "printNotes": "Not recommended — selling prints of trademarked characters risks takedowns and legal claims. Listed only so you know why it's excluded.",
+      "sources": [
+        { "title": "Etsy UK — best selling 3D printed items", "url": "https://www.etsy.com/uk/market/best_selling_3d_printed_items" },
+        { "title": "eBay UK — 3D models", "url": "https://www.ebay.co.uk/b/bn_7024924702" }
+      ]
+    }
+  ],
+  "ideas": [
+    {
+      "title": "Personalised name bauble",
+      "description": "Flat or dome bauble with a raised name in a contrasting colour, sold singly or as family sets. Top Christmas gifting search on Etsy UK.",
+      "forEvent": "Christmas",
+      "printer": "K2 Plus",
+      "material": "PLA",
+      "colours": 2,
+      "sizeMm": "80 × 80 × 8 mm",
+      "estGrams": 15,
+      "estHours": 0.7,
+      "suggestedPrice": "£6–10 (sets of 4 £20–28)",
+      "demand": "high",
+      "difficulty": "easy",
+      "designSource": "Design it yourself — a simple shape with text; offer fonts and colour choices.",
+      "why": "Etsy UK's Christmas trend pages lead with personalised ornaments, many under £15; UK searches peak Oct–mid Dec."
+    },
+    {
+      "title": "Stocking & gift name tags",
+      "description": "Personalised tags that clip onto stockings or tie onto presents. Cheap to make, easy add-on sale.",
+      "forEvent": "Christmas",
+      "printer": "Either",
+      "material": "PLA",
+      "colours": 2,
+      "sizeMm": "70 × 40 × 3 mm",
+      "estGrams": 5,
+      "estHours": 0.3,
+      "suggestedPrice": "£3–5 each, £10–14 for 4",
+      "demand": "high",
+      "difficulty": "easy",
+      "designSource": "Design it yourself.",
+      "why": "Personalised stocking and gift tags feature on Etsy UK's 2026 Christmas pages."
+    },
+    {
+      "title": "Lithophane photo bauble with LED",
+      "description": "Ball or disc lithophane showing the customer's own photo, lit by a small LED. Premium personalised gift.",
+      "forEvent": "Christmas",
+      "printer": "Either",
+      "material": "PLA (white)",
+      "colours": 1,
+      "sizeMm": "80 mm diameter",
+      "estGrams": 25,
+      "estHours": 2.5,
+      "suggestedPrice": "£12–20",
+      "demand": "medium",
+      "difficulty": "medium",
+      "designSource": "Generate from the customer's photo with a lithophane tool (e.g. ItsLitho — check its terms for commercial use).",
+      "why": "UK competitors mostly sell printed glass or ceramic photo baubles at £8–13; a lit lithophane stands out at a higher price."
+    },
+    {
+      "title": "Articulated dragon (silk PLA)",
+      "description": "Print-in-place flexible dragon — a consistent best seller as a gift and stocking filler.",
+      "forEvent": null,
+      "printer": "Either",
+      "material": "Silk PLA",
+      "colours": 1,
+      "sizeMm": "Up to 280 mm long",
+      "estGrams": 60,
+      "estHours": 3,
+      "suggestedPrice": "£12–25",
+      "demand": "high",
+      "difficulty": "easy",
+      "designSource": "Popular dragon designs usually need a commercial licence from the designer (often a small monthly fee) — buy one, or design your own.",
+      "why": "Articulated animals fill Etsy UK's bestseller pages and the dragon still leads 2026 download counts."
+    },
+    {
+      "title": "Fidget pack: gear spinner + infinity cube",
+      "description": "Two or three small fidgets sold as a bundle — great for market stalls and as a Black Friday deal.",
+      "forEvent": "Black Friday",
+      "printer": "Either",
+      "material": "PLA",
+      "colours": 2,
+      "sizeMm": "about 60 mm each",
+      "estGrams": 35,
+      "estHours": 2,
+      "suggestedPrice": "£8–14 per bundle",
+      "demand": "high",
+      "difficulty": "easy",
+      "designSource": "Use designs whose licence allows commercial use (check each one), or design your own.",
+      "why": "Fidget toys are #1 on TikTok's 3D-printing trend list (5 Oct 2026); gear spinners 673K views."
+    },
+    {
+      "title": "Articulated mini animals — set of 3",
+      "description": "Three small print-in-place animals in different colours, sold as a discounted bundle.",
+      "forEvent": "Black Friday",
+      "printer": "Either",
+      "material": "PLA",
+      "colours": 3,
+      "sizeMm": "about 90 mm each",
+      "estGrams": 40,
+      "estHours": 2.5,
+      "suggestedPrice": "£15–20 per set",
+      "demand": "medium",
+      "difficulty": "easy",
+      "designSource": "Licensed commercial designs or your own.",
+      "why": "Bundles of proven best sellers convert well during Black Friday sales."
+    },
+    {
+      "title": "Diya tealight holder",
+      "description": "Lattice-pattern diya-style holder for LED tealights. Listing window is now — best for local adverts and markets.",
+      "forEvent": "Diwali",
+      "printer": "Either",
+      "material": "PLA",
+      "colours": 1,
+      "sizeMm": "90 × 90 × 45 mm",
+      "estGrams": 35,
+      "estHours": 1.5,
+      "suggestedPrice": "£6–12 (sets of 3 £15–25)",
+      "demand": "medium",
+      "difficulty": "easy",
+      "designSource": "Design it yourself.",
+      "why": "Diwali (8 Nov) is a growing UK gifting date; printed decorations are a natural fit. Sell with LED tealights only — plastic and flames don't mix."
+    },
+    {
+      "title": "Autumn lantern with cut-out pattern",
+      "description": "Lantern with leaf or star cut-outs for an LED candle — works for Bonfire Night and as autumn décor.",
+      "forEvent": "Bonfire Night",
+      "printer": "Either",
+      "material": "PLA",
+      "colours": 1,
+      "sizeMm": "100 × 100 × 120 mm",
+      "estGrams": 60,
+      "estHours": 3,
+      "suggestedPrice": "£10–15",
+      "demand": "low",
+      "difficulty": "easy",
+      "designSource": "Design it yourself.",
+      "why": "Seasonal décor sells around Halloween and Bonfire Night; use LED candles only."
+    },
+    {
+      "title": "Highland cow desk buddy",
+      "description": "Small multi-colour desk or monitor figure — a popular low-cost gift.",
+      "forEvent": "Christmas",
+      "printer": "K2 Plus",
+      "material": "PLA",
+      "colours": 3,
+      "sizeMm": "70 × 50 × 60 mm",
+      "estGrams": 30,
+      "estHours": 2.5,
+      "suggestedPrice": "£8–14",
+      "demand": "medium",
+      "difficulty": "easy",
+      "designSource": "Popular versions are often non-commercial — design your own or license one.",
+      "why": "Highland-cow monitor buddies and desk companions appear as sellers' best sellers on TikTok Shop."
+    },
+    {
+      "title": "Game controller stand",
+      "description": "Stand for one or two controllers, in the buyer's choice of colours. Strong gift for gamers.",
+      "forEvent": "Christmas",
+      "printer": "Either",
+      "material": "PETG",
+      "colours": 1,
+      "sizeMm": "120 × 90 × 100 mm",
+      "estGrams": 70,
+      "estHours": 3,
+      "suggestedPrice": "£10–16",
+      "demand": "medium",
+      "difficulty": "easy",
+      "designSource": "Design it yourself — no console brand logos.",
+      "why": "Rising on TikTok's 3D-printing trend list (Oct 2026)."
+    },
+    {
+      "title": "Under-desk cup & headphone holder",
+      "description": "Clamp-on holder that swings out from under a desk.",
+      "forEvent": null,
+      "printer": "Either",
+      "material": "PETG",
+      "colours": 1,
+      "sizeMm": "160 × 100 × 60 mm",
+      "estGrams": 80,
+      "estHours": 3.5,
+      "suggestedPrice": "£10–18",
+      "demand": "medium",
+      "difficulty": "medium",
+      "designSource": "Design it yourself, or a model whose licence allows selling.",
+      "why": "Rising on TikTok's 3D-printing trend list (Oct 2026)."
+    },
+    {
+      "title": "Self-watering planter",
+      "description": "Two-part planter with a water reservoir — evergreen home-décor seller and Christmas gift.",
+      "forEvent": null,
+      "printer": "Either",
+      "material": "PETG",
+      "colours": 1,
+      "sizeMm": "120 × 120 × 110 mm",
+      "estGrams": 110,
+      "estHours": 5,
+      "suggestedPrice": "£12–22",
+      "demand": "medium",
+      "difficulty": "easy",
+      "designSource": "Design it yourself or a commercially licensed model.",
+      "why": "Planters recur on Etsy UK's 3D-printing bestseller pages."
+    },
+    {
+      "title": "Dice tower & card deck box",
+      "description": "Two-colour dice tower or deck box for tabletop gamers.",
+      "forEvent": "Christmas",
+      "printer": "Either",
+      "material": "PLA",
+      "colours": 2,
+      "sizeMm": "100 × 100 × 180 mm",
+      "estGrams": 150,
+      "estHours": 6,
+      "suggestedPrice": "£18–30",
+      "demand": "medium",
+      "difficulty": "medium",
+      "designSource": "Design it yourself — avoid game brand names and artwork.",
+      "why": "Tabletop accessories are a top eBay category for 3D-printed goods (collectors and hobbyists)."
+    },
+    {
+      "title": "Comic book wall frame",
+      "description": "Wall-mounted frame that displays a comic and lets it be swapped. Sell the frame only.",
+      "forEvent": null,
+      "printer": "Either",
+      "material": "PLA",
+      "colours": 1,
+      "sizeMm": "290 × 200 × 15 mm",
+      "estGrams": 120,
+      "estHours": 4,
+      "suggestedPrice": "£15–22",
+      "demand": "medium",
+      "difficulty": "easy",
+      "designSource": "Design it yourself.",
+      "why": "'Comic book wall art' had 657K TikTok views (Oct 2026)."
+    },
+    {
+      "title": "Modular cat bed",
+      "description": "Raised cat bed printed in sections, with a cushion bought separately.",
+      "forEvent": null,
+      "printer": "K2 Plus",
+      "material": "PETG",
+      "colours": 1,
+      "sizeMm": "340 × 340 × 120 mm",
+      "estGrams": 600,
+      "estHours": 20,
+      "suggestedPrice": "£35–55",
+      "demand": "medium",
+      "difficulty": "hard",
+      "designSource": "Design it yourself or a commercially licensed model.",
+      "why": "Rising on TikTok with 404K views (Oct 2026). Only the K2 Plus fits it in one piece."
+    },
+    {
+      "title": "Dreidel set",
+      "description": "Two-colour dreidels sold as sets.",
+      "forEvent": "Hanukkah",
+      "printer": "Either",
+      "material": "PLA",
+      "colours": 2,
+      "sizeMm": "40 × 40 × 55 mm",
+      "estGrams": 10,
+      "estHours": 0.8,
+      "suggestedPrice": "£4–7 each, £12–18 for 4",
+      "demand": "low",
+      "difficulty": "easy",
+      "designSource": "Design it yourself.",
+      "why": "Niche but easy seasonal product for Hanukkah (from 5 Dec)."
+    }
+  ]
+}

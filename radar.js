@@ -17,8 +17,17 @@ const RadarPage = {
     try {
       this.data = await Monitor.get('/api/trends');
     } catch (e) {
-      $('#view').innerHTML = `<p class="banner">Can’t reach the V9D monitor — check Tailscale is on. (${esc(e.message)})</p>`;
-      return;
+      // Monitor unreachable: still show the snapshot; hot dates need the monitor.
+      this.data = { hotDates: [], hasKey: false, running: false, research: null, offline: e.message };
+    }
+    // No daily research yet: fall back to the one-off snapshot published with the app.
+    this.snapshot = null;
+    if (!this.data.research) {
+      try {
+        const snap = await (await fetch('trends-snapshot.json', { cache: 'no-store' })).json();
+        this.snapshot = snap;
+        this.data.research = snap;
+      } catch {}
     }
     if (!this.data.research && this.tab !== 'dates') this.tab = 'dates';
     this.draw();
@@ -39,10 +48,15 @@ const RadarPage = {
   draw() {
     const d = this.data, r = d.research;
     const status = d.running ? 'Researching now — this takes a few minutes…'
+      : this.snapshot ? `One-off snapshot · researched ${fmt.date(new Date(this.snapshot.date))}`
       : d.updatedAt ? `Updated ${fmt.date(d.updatedAt)} ${fmt.time(d.updatedAt)}${d.cost?.usd ? ` · cost ~${approxGBP(d.cost.usd * USD_TO_GBP)}` : ''} · next update 06:00 UK`
       : d.hasKey ? 'First update runs shortly.' : '';
     $('#view').innerHTML = `
-      ${!d.hasKey ? `<p class="banner">Hot dates work now. For trending products and print ideas, add an Anthropic API key on the home PC (the installer asks for it).</p>` : ''}
+      ${d.offline ? `<p class="banner">${/404/.test(d.offline)
+        ? 'Hot dates need the latest V9D monitor on the home PC — run the update there.'
+        : 'Can’t reach the V9D monitor — check Tailscale is on.'} The snapshot below works anyway.</p>` : ''}
+      ${this.snapshot ? `<p class="banner">📸 Showing a one-off research snapshot from ${fmt.date(new Date(this.snapshot.date))}. Automatic daily updates start once an Anthropic API key is added on the home PC.</p>`
+        : !d.hasKey ? `<p class="banner">Hot dates work now. For trending products and print ideas, add an Anthropic API key on the home PC (the installer asks for it).</p>` : ''}
       ${d.error ? `<p class="banner warn">Last update failed: ${esc(d.error)}</p>` : ''}
       <div class="radar-status"><span class="muted">${esc(status)}</span>
         ${d.hasKey && !d.running ? '<button class="linkbtn" id="radarRefresh">Refresh now</button>' : ''}</div>
@@ -130,6 +144,10 @@ const RadarPage = {
     const today = new Date().toISOString().slice(0, 10);
     const soon = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
     let month = '', html = '';
+    if (!this.data.hotDates.length) {
+      $('#radarBody').innerHTML = `<div class="empty">${this.data.offline ? (/404/.test(this.data.offline) ? 'Hot dates appear once the V9D monitor on the home PC is updated.' : 'Hot dates come from the V9D monitor — turn on Tailscale and reopen this page.') : 'No upcoming dates.'}</div>`;
+      return;
+    }
     for (const e of this.data.hotDates) {
       const m = new Date(e.date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
       if (m !== month) { html += `<h3 class="day">${m}</h3>`; month = m; }
