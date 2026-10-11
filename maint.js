@@ -32,15 +32,16 @@ const MaintPage = {
       <button class="btn primary block" id="performBtn">Perform maintenance</button>
       ${unlogged ? `<p class="banner">${unlogged} item${unlogged > 1 ? 's have' : ' has'} no maintenance logged yet, so ${unlogged > 1 ? 'they count' : 'it counts'} from the first print the printer remembers. Log when you last did ${unlogged > 1 ? 'them' : 'it'} (you can pick a past date) to start reminders.</p>` : ''}
       ${items.map((i) => `
-        <button class="maint ${i.status}" data-item="${esc(i.id)}">
+        <div class="maint ${i.status}" data-item="${esc(i.id)}" role="button" tabindex="0">
           <div class="maint-top">
             <span class="maint-name">${esc(i.name)}</span>
             <span class="maint-state ${i.status}">${STATUS_TEXT[i.status]}</span>
+            ${helpFor(pr.name, i.id) ? `<button class="info-btn" data-help="${esc(i.id)}" aria-label="How to: ${esc(i.name)}">i</button>` : ''}
           </div>
           <div class="maint-bar"><i style="width:${i.percent}%"></i></div>
           <div class="muted">${esc(usedText(i))}</div>
           <div class="muted">${i.kind === 'replace' ? 'Replace' : 'Service'} · ${i.logged ? `last done ${fmt.date(i.since)}` : `not logged — counting from ${fmt.date(i.since)}`}</div>
-        </button>`).join('')}
+        </div>`).join('')}
       <h3 class="day">Maintenance log</h3>
       ${this.data.history.filter((h) => h.printer === this.printer).map((h) => `
         <div class="job"><div class="job-main">
@@ -53,7 +54,15 @@ const MaintPage = {
       this.printer = b.dataset.mprinter; store.set('maintPrinter', this.printer); this.draw();
     });
     $('#performBtn').onclick = () => this.perform([]);
-    document.querySelectorAll('[data-item]').forEach((b) => b.onclick = () => this.detail(pr.items.find((i) => i.id === b.dataset.item)));
+    document.querySelectorAll('[data-item]').forEach((b) => {
+      const open = () => this.detail(pr.items.find((i) => i.id === b.dataset.item));
+      b.onclick = open;
+      b.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+    });
+    document.querySelectorAll('[data-help]').forEach((b) => b.onclick = (e) => {
+      e.stopPropagation();
+      this.help(pr.items.find((i) => i.id === b.dataset.help));
+    });
   },
 
   detail(i) {
@@ -68,9 +77,33 @@ const MaintPage = {
       </div>
       <p class="note">${esc(i.how)}</p>
       <p class="note">${i.source === 'creality' ? `Interval from Creality${i.url ? ` — <a href="${esc(i.url)}" target="_blank" rel="noopener">maintenance guide</a>` : ''}.` : 'Typical interval — Creality doesn’t publish one for this.'}</p>
+      ${helpFor(this.data.printers[this.printer].name, i.id) ? '<button class="btn block" id="howTo">How to do it — step by step</button>' : ''}
       <button class="btn primary block" id="doItem">Perform maintenance</button>`);
     $('#cancelSheet').onclick = closeSheet;
     $('#doItem').onclick = () => this.perform([i.id]);
+    const how = $('#howTo');
+    if (how) how.onclick = () => this.help(i);
+  },
+
+  // Step-by-step guide (summarised from Creality) with their video and photo guide.
+  help(i) {
+    const h = helpFor(this.data.printers[this.printer].name, i.id);
+    if (!h) return;
+    const links = [['Photo guide on Creality Wiki', h.guide], ...(h.links || [])].filter(([, u]) => u);
+    openSheet(`
+      <div class="cam-head"><h2>${esc(i.name)}</h2><button class="icon-btn" id="cancelSheet" aria-label="Close">✕</button></div>
+      <p class="note">${esc(h.intro)}</p>
+      ${h.video ? `<div class="cam help-video"><iframe src="https://www.youtube-nocookie.com/embed/${esc(h.video)}?rel=0&playsinline=1" title="Creality video: ${esc(i.name)}" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>
+        <p class="muted help-cap">Creality’s official video</p>` : ''}
+      ${h.safety ? `<p class="help-warn">⚠️ ${esc(h.safety)}</p>` : ''}
+      ${h.tools.length ? `<h3 class="help-h">You’ll need</h3><ul class="help-tools">${h.tools.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+      <h3 class="help-h">Steps</h3>
+      <ol class="help-steps">${h.steps.map((t) => `<li>${esc(t)}</li>`).join('')}</ol>
+      <div class="help-links">${links.map(([label, url]) => `<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">${esc(label)} ↗</a>`).join('')}</div>
+      <p class="muted">Summarised from Creality’s official guides — the linked pages have the photos for each step.</p>
+      <button class="btn primary block" id="helpDone">Done — log this maintenance</button>`);
+    $('#cancelSheet').onclick = closeSheet;
+    $('#helpDone').onclick = () => this.perform([i.id]);
   },
 
   perform(preselect) {

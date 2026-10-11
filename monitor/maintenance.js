@@ -5,39 +5,41 @@
 const fs = require('fs');
 const path = require('path');
 
-const K1_GUIDE = 'https://store.creality.com/blogs/all/creality-k1-series-routine-maintenance-tips';
-const K2_GUIDE = 'https://store.creality.com/uk/blogs/tutorial/creality-k2-plus-maintenance';
+const K1_TIPS = 'https://store.creality.com/blogs/all/creality-k1-series-routine-maintenance-tips';
+const K2_TIPS = 'https://wiki.creality.com/en/k2-flagship-series/k2-plus/maintenance-tips';
 
 // interval: any of { hours (printing), kg (filament), days } — whichever comes first.
 // source: 'creality' when the figure is Creality's, otherwise 'typical'.
+// Step-by-step help for each item lives in the app (maint-help.js).
 const CATALOG = {
   'K1 Max': [
-    { id: 'nozzle', name: 'Nozzle', kind: 'replace', interval: { hours: 500 }, source: 'creality', url: K1_GUIDE,
-      how: 'Preheat the hotend, hold the heater block with a tool and swap the nozzle while hot.' },
-    { id: 'lube', name: 'Lubricate rods, lead screws & bearings', kind: 'service', interval: { hours: 500 }, source: 'creality', url: K1_GUIDE,
-      how: 'Thin layer of the supplied grease on the threaded rods, smooth rods and linear bearings. Never use liquid lubricants. Wipe the X-axis rod (graphite bushing) instead of greasing it.' },
-    { id: 'selftest', name: 'Device self-test', kind: 'service', interval: { hours: 300 }, source: 'creality', url: K1_GUIDE,
+    { id: 'nozzle', name: 'Nozzle', kind: 'replace', interval: { hours: 500 }, source: 'creality', url: K1_TIPS,
+      how: 'Swap the nozzle while hot (220 °C) using the toolkit wrench and socket.' },
+    { id: 'lube', name: 'Lubricate rods, lead screws & bearings', kind: 'service', interval: { hours: 500 }, source: 'creality', url: K1_TIPS,
+      how: 'Thin layer of the supplied grease on the threaded rods, smooth rods and linear bearings. Never liquid lubricants.' },
+    { id: 'selftest', name: 'Device self-test', kind: 'service', interval: { hours: 300 }, source: 'creality', url: K1_TIPS,
       how: 'Run the full self-test from the printer screen so its compensation matches the current wear.' },
-    { id: 'belts', name: 'Belt tension & frame screws', kind: 'service', interval: { hours: 500 }, source: 'typical', url: K1_GUIDE,
+    { id: 'belts', name: 'Belt tension & frame screws', kind: 'service', interval: { hours: 500 }, source: 'typical', url: K1_TIPS,
       how: 'Belts tight but not over-tensioned; re-tighten frame screws loosened by vibration. Creality says “periodically”.' },
-    { id: 'fans', name: 'Clean fans & cooling', kind: 'service', interval: { days: 30 }, source: 'typical', url: K1_GUIDE,
+    { id: 'fans', name: 'Clean fans & cooling', kind: 'service', interval: { days: 30 }, source: 'typical', url: K1_TIPS,
       how: 'With the printer off, clear dust from the hotend, part-cooling and auxiliary fans. Creality says “regularly”.' },
     { id: 'plate', name: 'Build plate', kind: 'replace', interval: { hours: 1500 }, source: 'typical',
       how: 'Replace when the PEI surface is worn or scratched and prints stop sticking after cleaning. No official interval.' },
   ],
   'K2 Plus': [
-    { id: 'nozzle', name: 'Nozzle', kind: 'replace', interval: { hours: 500 }, source: 'creality', url: K1_GUIDE,
+    { id: 'nozzle', name: 'Nozzle', kind: 'replace', interval: { hours: 500 }, source: 'creality', url: K1_TIPS,
       how: 'Creality’s figure for its K-series nozzles (no separate K2 Plus figure). Replace sooner if printing abrasive filaments.' },
-    { id: 'lube', name: 'Lubricate Y/Z shafts & lead screws', kind: 'service', interval: { hours: 300, days: 90 }, source: 'creality', url: K2_GUIDE,
-      how: 'Wipe with a lint-free cloth and grease. The manual says every 300 print hours; Creality’s guide says every 3 months (5 kg when printing ABS/ASA).' },
-    { id: 'xrails', name: 'Clean & oil X-axis rails', kind: 'service', interval: { days: 30 }, source: 'creality', url: K2_GUIDE,
-      how: 'Clean with a lint-free cloth and apply a thin layer of metal anti-rust oil.' },
-    { id: 'filter', name: 'Air filter cartridge', kind: 'replace', interval: { hours: 300, days: 90 }, source: 'creality', url: K2_GUIDE,
-      how: 'Open the air filter cover and swap the activated carbon cartridge.' },
-    { id: 'cutter', name: 'Filament cutter blade', kind: 'replace', interval: { kg: 5 }, source: 'creality', url: K2_GUIDE,
-      how: 'Inspect after every 5 rolls of standard filament (1 roll for reinforced filaments) and replace if dull.' },
-    { id: 'shaping', name: 'Input shaping calibration', kind: 'service', interval: { days: 30 }, source: 'creality', url: K2_GUIDE,
-      how: 'With no filament loaded: Settings › Device Detection › Input shaping. Also checks belt tension.' },
+    { id: 'rails', name: 'Clean & lubricate X rail and Z lead screws', kind: 'service', interval: { days: 7 }, source: 'creality',
+      url: 'https://wiki.creality.com/en/k2-flagship-series/k2-plus/clean-x-axis-guide-rail',
+      how: 'Wipe clean, then WD-40 Specialist Silicone. Creality: weekly with frequent use, every two weeks otherwise.' },
+    { id: 'lube', name: 'Grease Y/Z optical shafts', kind: 'service', interval: { hours: 300, days: 90 }, source: 'creality', url: K2_TIPS,
+      how: 'Wipe with a lint-free cloth and apply grease. Every 3 months (300 print hours in the manual); every 5 days if printing a lot of ABS/ASA.' },
+    { id: 'filter', name: 'Air filter cartridge', kind: 'replace', interval: { hours: 300, days: 90 }, source: 'creality', url: K2_TIPS,
+      how: 'Open the side air filter covers and swap the activated carbon cartridge.' },
+    { id: 'cutter', name: 'Filament cutter blade', kind: 'replace', interval: { kg: 5 }, source: 'creality', url: K2_TIPS,
+      how: 'Inspect after every 5 rolls of standard filament (1 roll for fibre-reinforced) and replace if dull.' },
+    { id: 'shaping', name: 'Input shaping calibration', kind: 'service', interval: { days: 30 }, source: 'creality', url: K2_TIPS,
+      how: 'With no filament loaded: Settings › Detection › Input Shaping. Also re-tensions the belts and calibrates the cutter.' },
     { id: 'plate', name: 'Build plate', kind: 'replace', interval: { hours: 1500 }, source: 'typical',
       how: 'Replace when the surface is worn and prints stop sticking after cleaning. No official interval.' },
   ],

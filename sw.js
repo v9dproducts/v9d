@@ -1,11 +1,12 @@
 // Bump VERSION on every deploy so phones pick up the new files.
-const VERSION = 'v9d-12';
+const VERSION = 'v9d-13';
 const SHELL = [
   './',
   'index.html',
   'styles.css',
   'app.js',
   'costs.js',
+  'maint-help.js',
   'maint.js',
   'printers.json',
   'manifest.webmanifest',

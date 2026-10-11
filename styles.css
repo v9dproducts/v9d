@@ -184,7 +184,7 @@ h3.day { font-size: 13px; color: var(--muted); font-weight: 600; margin: 18px 4p
 .temps { margin-top: 8px; }
 
 /* Maintenance */
-.maint { display: block; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 10px 0 0; color: var(--text); }
+.maint { display: block; width: 100%; cursor: pointer; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 10px 0 0; color: var(--text); }
 .maint-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .maint-name { font-weight: 600; }
 .maint-state { font-size: 13px; font-weight: 700; white-space: nowrap; }
@@ -200,3 +200,18 @@ h3.day { font-size: 13px; color: var(--muted); font-weight: 600; margin: 18px 4p
 .checks { margin-bottom: 12px; }
 .check { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
 .check input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+
+/* Maintenance help */
+.maint-top .maint-state { margin-left: auto; }
+.info-btn { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--muted); background: transparent; color: var(--text); font: italic 700 14px/1 Georgia, serif; display: grid; place-items: center; padding: 0; }
+.help-video { margin: 4px 0 4px; }
+.help-cap { margin: 0 0 12px; }
+.help-warn { background: rgba(245, 185, 66, .12); border: 1px solid rgba(245, 185, 66, .4); color: var(--text); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin: 0 0 12px; }
+.help-h { font-size: 15px; margin: 14px 0 6px; }
+.help-tools { margin: 0; padding-left: 20px; color: var(--text); font-size: 14px; }
+.help-tools li { margin: 3px 0; }
+.help-steps { margin: 0; padding-left: 22px; font-size: 15px; line-height: 1.45; }
+.help-steps li { margin: 0 0 9px; padding-left: 2px; }
+.help-links { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 10px; }
+.help-links .btn { text-align: center; }
+.sheet #howTo { margin-bottom: 10px; }
