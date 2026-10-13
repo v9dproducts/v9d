@@ -113,15 +113,17 @@ const UsagePage = {
   },
 
   // Energy while switched on but not printing: idle hours in the period × standby watts.
-  standbyWh(id, from) {
+  // Idle time and energy for one printer in the period: { wh, hours, busyHours }.
+  // busyHours = time inside prints (including pauses), so busy + idle = the whole period.
+  standby(id, from) {
     const mine = this.data.jobs.filter((j) => j.printer === id);
-    if (!mine.length) return 0;
+    if (!mine.length) return { wh: 0, hours: 0, busyHours: 0 };
     // A fixed period counts in full (the printers are on 24/7); "All time" starts at the
     // first recorded print.
     const start = from || Math.min(...mine.map((j) => j.start)), end = Date.now();
     const busy = mine.reduce((a, j) => a + Math.max(0, Math.min(j.end, end) - Math.max(j.start, start)), 0);
     const idleH = Math.max(0, end - start - busy) / 3600000;
-    return idleH * (this.data.printers[id]?.standbyW || 0);
+    return { wh: idleH * (this.data.printers[id]?.standbyW || 0), hours: idleH, busyHours: busy / 3600000 };
   },
 
   renderResults() {
@@ -134,15 +136,37 @@ const UsagePage = {
     const sum = (f) => jobs.reduce((a, j) => a + f(j), 0);
     const grams = sum((j) => j.grams), printWh = sum((j) => j.energyWh), secs = sum((j) => j.printSec);
     const ids = this.printer === 'all' ? Object.keys(names) : [this.printer];
-    const standby = Object.fromEntries(ids.map((id) => [id, this.standbyWh(id, from)]));
-    const standbyWh = Object.values(standby).reduce((a, b) => a + b, 0);
+    const standby = Object.fromEntries(ids.map((id) => [id, this.standby(id, from)]));
+    const standbyWh = Object.values(standby).reduce((a, b) => a + b.wh, 0);
     const wh = printWh + standbyWh;
+
+    // Electricity per printer: printing vs idle, then both combined.
+    const rows = ids.map((id) => {
+      const js = jobs.filter((j) => j.printer === id);
+      const run = { wh: js.reduce((a, j) => a + j.energyWh, 0), hours: standby[id].busyHours };
+      return { name: names[id].name, run, idle: standby[id] };
+    });
+    if (rows.length > 1) {
+      const add = (k) => ({ wh: rows.reduce((a, r) => a + r[k].wh, 0), hours: rows.reduce((a, r) => a + r[k].hours, 0) });
+      rows.push({ name: 'Both printers', run: add('run'), idle: add('idle'), combined: true });
+    }
+    const cell = (x) => `<span class="eb-cell"><b>${fmt.money(Prices.energy(x.wh, p))}</b><small>${fmt.kwh(x.wh)}</small><small>${Math.round(x.hours)} h</small></span>`;
+    const breakdown = `
+      <div class="panel eb">
+        <div class="eb-title">Electricity — printing vs idle</div>
+        <div class="eb-grid">
+          <span></span><span class="eb-head">Printing</span><span class="eb-head">Idle</span><span class="eb-head">Total</span>
+          ${rows.map((r) => `
+            <span class="eb-name ${r.combined ? 'eb-sum' : ''}">${esc(r.name)}</span>
+            ${cell(r.run)}${cell(r.idle)}${cell({ wh: r.run.wh + r.idle.wh, hours: r.run.hours + r.idle.hours })}`).join('')}
+        </div>
+      </div>`;
     const matCost = Prices.material(grams, p), elecCost = Prices.energy(wh, p);
     const estimated = jobs.filter((j) => j.energySource === 'estimated').length;
 
     const perPrinter = this.printer === 'all' ? ids.map((id) => {
       const js = jobs.filter((j) => j.printer === id);
-      const g = js.reduce((a, j) => a + j.grams, 0), e = js.reduce((a, j) => a + j.energyWh, 0) + standby[id];
+      const g = js.reduce((a, j) => a + j.grams, 0), e = js.reduce((a, j) => a + j.energyWh, 0) + standby[id].wh;
       return `<div class="row-item"><span>${esc(names[id].name)}</span>
         <span class="muted">${js.length} prints · ${fmt.grams(g)} · ${fmt.kwh(e)}</span>
         <b>${fmt.money(Prices.material(g, p) + Prices.energy(e, p))}</b></div>`;
@@ -174,11 +198,8 @@ const UsagePage = {
         <div class="stat"><div class="stat-label">Material</div><div class="stat-num">${fmt.money(matCost)}</div><div class="muted">${fmt.grams(grams)}</div></div>
         <div class="stat"><div class="stat-label">Electricity</div><div class="stat-num">${fmt.money(elecCost)}</div><div class="muted">${fmt.kwh(wh)}</div></div>
       </div>
-      <div class="panel">
-        <div class="row-item"><span>Printing</span><span class="muted">${fmt.kwh(printWh)}</span><b>${fmt.money(Prices.energy(printWh, p))}</b></div>
-        <div class="row-item"><span>Standby</span><span class="muted">${fmt.kwh(standbyWh)}</span><b>${fmt.money(Prices.energy(standbyWh, p))}</b></div>
-      </div>
-      ${perPrinter ? `<div class="panel">${perPrinter}</div>` : ''}
+      ${breakdown}
+      ${perPrinter ? `<div class="panel"><div class="eb-title">Total per printer — material + electricity</div>${perPrinter}</div>` : ''}
       ${list || '<div class="empty">No prints in this period.</div>'}
       <p class="hint">Material is reported by the printers (1.75 mm filament, weight from the material’s density). Electricity is estimated from the heaters’ power — see Live Power. Standby assumes the printers are on 24/7, idling at ${standbyNote} when not printing${this.period === 'all' ? ', counted from each printer’s first recorded print' : ''}.${estimated ? ` * Prints from before monitoring started are estimated from print time.` : ''}</p>`;
   },
