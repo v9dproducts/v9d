@@ -10,7 +10,7 @@ const Dash = {
 
   async render() {
     setHeader('Printers', {
-      back: true,
+      tabRoot: true,
       actions: `<button class="icon-btn" id="openAlerts" aria-label="Notifications">${Alerts.bellIcon()}</button>
                 <button class="icon-btn" id="managePrinters" aria-label="Manage printers">⚙︎</button>`,
     });

@@ -5,17 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>V9D</title>
   <meta name="description" content="V9D personal toolkit">
-  <meta name="theme-color" content="#0b0f16">
+  <meta name="theme-color" content="#EFEEEA">
 
   <!-- PWA / iOS -->
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="V9D">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon-192.png">
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -29,6 +32,13 @@
 
   <main id="view"></main>
 
+  <nav class="tabbar" id="tabbar" aria-label="Main">
+    <a href="#/" data-tab="home"><span aria-hidden="true">🏠</span>Home</a>
+    <a href="#/printers" data-tab="printers"><span aria-hidden="true">🖨️</span>Printers</a>
+    <a href="#/business" data-tab="business"><span aria-hidden="true">📈</span>Business</a>
+    <a href="#/settings" data-tab="settings"><span aria-hidden="true">⚙️</span>Settings</a>
+  </nav>
+
   <!-- Bottom sheet used for add/edit forms -->
   <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
   <section class="sheet" id="sheet" hidden aria-modal="true" role="dialog"></section>
@@ -38,6 +48,7 @@
   <script src="maint.js"></script>
   <script src="radar.js"></script>
   <script src="dash.js"></script>
+  <script src="home.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

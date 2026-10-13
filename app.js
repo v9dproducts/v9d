@@ -1,4 +1,4 @@
-// V9D — tiny hash-routed PWA. Each "function" is a module in MODULES.
+// V9D — tiny hash-routed PWA. Pages are listed in ROUTES; the tab bar groups them.
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -14,10 +14,11 @@ const store = {
 
 // ---------- UI helpers ----------
 let backTarget = '#/';
-function setHeader(title, { back = false, backTo = '#/', actions = '' } = {}) {
+// Tab roots have no back button; other pages go back to their tab (or backTo).
+function setHeader(title, { back = false, backTo, tabRoot = false, actions = '' } = {}) {
   $('#title').textContent = title;
-  $('#backBtn').hidden = !back;
-  backTarget = backTo;
+  $('#backBtn').hidden = tabRoot || !back;
+  backTarget = backTo || `#/${TAB_ROOT[tabFor(currentRoute())]}`;
   $('#actions').innerHTML = actions;
   document.title = title === 'V9D' ? 'V9D' : `${title} · V9D`;
 }
@@ -338,39 +339,38 @@ const Alerts = {
 };
 
 // ---------- Module registry (add new functions here) ----------
-const MODULES = [
-  { route: 'printers', name: '3D Printers', glyph: '🖨️', sub: 'Live dashboard & controls', render: () => Dash.render() },
-  { route: 'usage', name: 'Usage & Costs', glyph: '💷', sub: 'Material & electricity', render: () => UsagePage.render() },
-  { route: 'power', name: 'Live Power', glyph: '⚡', sub: 'Watts right now', render: () => PowerPage.render() },
-  { route: 'maintenance', name: 'Maintenance', glyph: '🔧', sub: 'Parts & service', render: () => MaintPage.render() },
-  { route: 'radar', name: 'Trend Radar', glyph: '📡', sub: 'What to make next', render: () => RadarPage.render() },
-];
-
-// Pages reached from inside a module (not shown as home tiles).
-const SUBPAGES = [
-  { route: 'printers/manage', render: () => Printers.render() },
-];
-
-function renderHome() {
-  setHeader('V9D');
-  $('#view').innerHTML = `
-    <div class="brand"><img src="icons/logo-banner.png" alt="V9D — Think. Make. V9D."></div>
-    <div class="tiles">
-      ${MODULES.map((m) => `
-        <a class="tile" href="#/${m.route}">
-          <span class="glyph">${m.glyph}</span>
-          <span class="name">${esc(m.name)}</span>
-          <span class="sub">${esc(m.sub)}</span>
-        </a>`).join('')}
-      <div class="tile soon"><span class="glyph">＋</span><span class="name">More soon</span></div>
-    </div>`;
+// Every page, by route. The tab bar groups them; Business holds the money/planning tools.
+const ROUTES = {
+  '': () => HomePage.render(),
+  printers: () => Dash.render(),
+  'printers/manage': () => Printers.render(),
+  business: () => BusinessPage.render(),
+  usage: () => UsagePage.render(),
+  power: () => PowerPage.render(),
+  radar: () => RadarPage.render(),
+  maintenance: () => MaintPage.render(),
+  settings: () => SettingsPage.render(),
+};
+const TAB_ROOT = { home: '', printers: 'printers', business: 'business', settings: 'settings' };
+const currentRoute = () => location.hash.replace(/^#\/?/, '');
+function tabFor(r) {
+  if (r.startsWith('printers')) return 'printers';
+  if (['business', 'usage', 'power', 'radar', 'maintenance'].includes(r)) return 'business';
+  if (r === 'settings') return 'settings';
+  return 'home';
 }
 
 function route() {
   closeSheet();
-  const name = location.hash.replace(/^#\/?/, '');
-  const mod = MODULES.find((m) => m.route === name) || SUBPAGES.find((m) => m.route === name);
-  mod ? mod.render() : renderHome();
+  const r = ROUTES[currentRoute()] ? currentRoute() : '';
+  const tab = tabFor(r);
+  document.body.classList.toggle('is-home', r === '');
+  document.querySelectorAll('#tabbar [data-tab]').forEach((a) => {
+    const on = a.dataset.tab === tab;
+    a.classList.toggle('on', on);
+    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  ROUTES[r]();
   window.scrollTo(0, 0);
 }
 
