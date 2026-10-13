@@ -119,8 +119,7 @@ const SettingsPage = {
       ${calc.html}
       <h3 class="day">Printers</h3>
       <a class="hub-row" href="#/printers/manage"><span class="hub-icon">${icon('printer', 26)}</span>
-        <span class="w-col"><b>Manage printers</b><span class="w-sub">Add, edit, export or import printers</span></span><span class="chev" aria-hidden="true">›</span></a>
-      <p class="hint">V9D · connects to the monitor at ${esc(Monitor.base())}</p>`;
+        <span class="w-col"><b>Manage printers</b><span class="w-sub">Add, edit, export or import printers</span></span><span class="chev" aria-hidden="true">›</span></a>`;
     calc.bind();
     $('#setAlerts').onclick = () => Alerts.open();
   },

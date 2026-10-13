@@ -241,7 +241,7 @@ const Monitor = {
   // When the app is opened from the monitor itself (the Tailscale address, or locally on the
   // home PC), talk to that same address — desktop browsers block the cross-site route.
   servedByMonitor() { return location.hostname.endsWith('.ts.net') || location.port === '8787'; },
-  base() { return (store.get('monitorUrl', '') || (this.servedByMonitor() ? location.origin : this.DEFAULT)).replace(/\/+$/, ''); },
+  base() { return this.servedByMonitor() ? location.origin : this.DEFAULT; },
   async get(path) {
     const res = await fetch(this.base() + path, { signal: AbortSignal.timeout(5000), cache: 'no-store' });
     if (!res.ok) throw new Error(`Monitor replied ${res.status}`);
@@ -292,12 +292,10 @@ const Alerts = {
       <h2>Notifications</h2>
       ${body}
       <p class="note" id="alertMsg"></p>
-      <label class="field"><span>Monitor address</span><input id="monitorUrl" value="${esc(store.get('monitorUrl', ''))}" placeholder="${esc(Monitor.DEFAULT)}" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
       <div class="row"><button type="button" class="btn" id="cancelSheet">Close</button></div>`);
 
     const msg = (t) => { $('#alertMsg').textContent = t; };
-    $('#cancelSheet').onclick = () => { store.set('monitorUrl', $('#monitorUrl').value.trim()); closeSheet(); };
-    $('#monitorUrl').onchange = (e) => store.set('monitorUrl', e.target.value.trim());
+    $('#cancelSheet').onclick = closeSheet;
 
     const on = $('#alertOn');
     if (on) on.onclick = async () => {
@@ -339,6 +337,9 @@ const Alerts = {
 };
 
 // ---------- Module registry (add new functions here) ----------
+// The monitor address is no longer user-editable; drop any address saved by older versions.
+try { localStorage.removeItem('v9d:monitorUrl'); } catch {}
+
 // Tab bar icons
 document.querySelectorAll('#tabbar [data-icon]').forEach((el) => { el.innerHTML = icon(el.dataset.icon, 22); });
 
