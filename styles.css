@@ -427,3 +427,33 @@ body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-even
 #view .ctrl-row .btn.on { background: rgba(244, 122, 32, .3); color: var(--on-bg); }
 #view .chips .chip { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .16); color: var(--on-bg-muted); }
 #view .chips .chip.on { background: var(--surface); border-color: var(--surface); color: var(--text); }
+
+/* Style D · Dark glass: navigation tiles are see-through glass with white line icons and a short
+   orange underline; data panels stay white. */
+:root { --glass: rgba(255, 255, 255, .08); --glass-line: rgba(255, 255, 255, .14); --glass-on: rgba(255, 255, 255, .14); }
+.ico { display: block; flex: none; }
+
+.w { background: var(--glass); border: 1px solid var(--glass-line); color: var(--on-bg);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.w .w-sub, .w .w-label { color: var(--on-bg-muted); }
+.w-ico { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; color: var(--on-bg); }
+.w-ico::after, .hub-icon::after { content: ''; width: 18px; height: 3px; border-radius: 2px; background: var(--accent); }
+.w-hero { border: 1px solid var(--glass-line); box-shadow: none; }
+.w-cam-idle { color: var(--on-bg-muted); }
+.w-icon { background: var(--glass-on); color: var(--on-bg); }
+
+.hub-row { background: var(--glass); border: 1px solid var(--glass-line); color: var(--on-bg);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.hub-row .w-sub { color: var(--on-bg-muted); }
+.hub-icon { background: none; width: auto; height: auto; display: flex; flex-direction: column; align-items: center; gap: 7px; color: var(--on-bg); }
+.chev { color: var(--on-bg-muted); }
+
+.tabbar { background: rgba(20, 24, 26, .72); border: 1px solid var(--glass-line); box-shadow: 0 8px 28px rgba(0, 0, 0, .35);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.tabbar a { color: var(--on-bg-muted); position: relative; }
+.tabbar a.on { background: var(--glass-on); color: var(--on-bg); }
+.tabbar a.on::after { content: ''; position: absolute; bottom: 3px; width: 16px; height: 3px; border-radius: 2px; background: var(--accent); }
+.tabbar a span { display: grid; place-items: center; }
+
+.ctrl-row .btn .ico { display: inline-block; vertical-align: -3px; }
+.topbar .icon-btn .ico { display: block; }

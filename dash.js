@@ -12,7 +12,7 @@ const Dash = {
     setHeader('Printers', {
       tabRoot: true,
       actions: `<button class="icon-btn" id="openAlerts" aria-label="Notifications">${Alerts.bellIcon()}</button>
-                <button class="icon-btn" id="managePrinters" aria-label="Manage printers">⚙︎</button>`,
+                <button class="icon-btn" id="managePrinters" aria-label="Manage printers">${icon('sliders', 18)}</button>`,
     });
     $('#openAlerts').onclick = () => Alerts.open();
     $('#managePrinters').onclick = () => { location.hash = '#/printers/manage'; };
@@ -157,7 +157,7 @@ function fullView(d) {
       ${st === 'paused' ? '<button class="btn primary" data-act="resume">▶ Resume</button>' : ''}
       ${active ? '<button class="btn danger-fill" data-act="stop">■ Stop</button>' : ''}
       ${!active ? '<button class="btn primary" data-act="files">Print a file…</button>' : ''}
-      <button class="btn ${d.light ? 'on' : ''}" data-act="light">💡 ${d.light ? 'On' : 'Off'}</button>
+      <button class="btn ${d.light ? 'on' : ''}" data-act="light">${icon('bulb', 18)} ${d.light ? 'On' : 'Off'}</button>
     </div>
 
     <div class="temp-grid">

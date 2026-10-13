@@ -339,6 +339,9 @@ const Alerts = {
 };
 
 // ---------- Module registry (add new functions here) ----------
+// Tab bar icons
+document.querySelectorAll('#tabbar [data-icon]').forEach((el) => { el.innerHTML = icon(el.dataset.icon, 22); });
+
 // Every page, by route. The tab bar groups them; Business holds the money/planning tools.
 const ROUTES = {
   '': () => HomePage.render(),

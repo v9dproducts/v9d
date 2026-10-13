@@ -35,16 +35,17 @@
   <main id="view"></main>
 
   <nav class="tabbar" id="tabbar" aria-label="Main">
-    <a href="#/" data-tab="home"><span aria-hidden="true">🏠</span>Home</a>
-    <a href="#/printers" data-tab="printers"><span aria-hidden="true">🖨️</span>Printers</a>
-    <a href="#/business" data-tab="business"><span aria-hidden="true">📈</span>Business</a>
-    <a href="#/settings" data-tab="settings"><span aria-hidden="true">⚙️</span>Settings</a>
+    <a href="#/" data-tab="home"><span data-icon="home"></span>Home</a>
+    <a href="#/printers" data-tab="printers"><span data-icon="printer"></span>Printers</a>
+    <a href="#/business" data-tab="business"><span data-icon="trend"></span>Business</a>
+    <a href="#/settings" data-tab="settings"><span data-icon="sliders"></span>Settings</a>
   </nav>
 
   <!-- Bottom sheet used for add/edit forms -->
   <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
   <section class="sheet" id="sheet" hidden aria-modal="true" role="dialog"></section>
 
+  <script src="icons.js"></script>
   <script src="costs.js"></script>
   <script src="maint-help.js"></script>
   <script src="maint.js"></script>
