@@ -8,7 +8,7 @@ const HomePage = {
     $('#view').innerHTML = `
       <div class="home-head">
         <div><span class="muted">${now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
-          <h1>Workshop</h1></div>
+          <h1>Dashboard</h1></div>
         <img class="home-logo" src="icons/logo-banner.png" alt="V9D — Think. Make. V9D.">
       </div>
       <div class="widgets" id="widgets"><p class="banner">Loading…</p></div>`;

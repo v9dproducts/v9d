@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy so phones pick up the new files.
-const VERSION = 'v9d-22';
+const VERSION = 'v9d-23';
 const SHELL = [
   './',
   'index.html',
