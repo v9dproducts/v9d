@@ -10,6 +10,7 @@ const { MOONRAKER_OBJECTS, estimateMoonraker, estimateCreality, profileFor, stan
 const { Usage, moonrakerHistory, crealityHistory } = require('./usage');
 const { Maintenance, sampleMessages } = require('./maintenance');
 const { Trends } = require('./trends');
+const dash = require('./k2dash');
 
 const DATA = path.join(__dirname, 'data');
 fs.mkdirSync(DATA, { recursive: true });
@@ -173,9 +174,10 @@ function watchMoonraker(p) {
   const tick = async () => {
     if (stopped) return;
     try {
-      const objects = ['print_stats', 'webhooks', 'virtual_sdcard', ...MOONRAKER_OBJECTS].map(encodeURIComponent).join('&');
+      const objects = [...new Set([...dash.DASH_OBJECTS, ...MOONRAKER_OBJECTS])].map(encodeURIComponent).join('&');
       const res = await fetch(`${base}/printer/objects/query?${objects}`, { signal: AbortSignal.timeout(5000) });
       const st = (await res.json()).result.status;
+      dash.recordLive(p, st);
       const ps = st.print_stats || {}, wh = st.webhooks || {}, sd = st.virtual_sdcard || {};
       const klipperBroken = wh.state === 'shutdown' || wh.state === 'error';
       const state = klipperBroken ? 'error' : (MAP[ps.state] || 'idle');
@@ -192,7 +194,7 @@ function watchMoonraker(p) {
     } catch {
       markOfflineIfStale(p.cfg.id);
     }
-    setTimeout(tick, 5000);
+    setTimeout(tick, 2500); // fast enough for a live dashboard
   };
   tick();
   return { stop: () => { stopped = true; }, history: () => moonrakerHistory(p.cfg) };
@@ -300,6 +302,38 @@ function readBody(req) {
   });
 }
 
+// ---------- The V9D app itself, so laptops can open it from this address ----------
+// Desktop Chrome/Brave block a public website from calling private-network addresses, so the
+// app is also served from here (same origin as the API). Files come from the published site
+// (always current), falling back to the copy next to this folder.
+const APP_URL = config.printersUrl.replace(/printers\.json$/, '');
+// Explicit list — add new app files here. Nothing in monitor/ (keys, data) is ever served.
+const APP_FILES = new Set(['index.html', 'app.js', 'costs.js', 'maint.js', 'maint-help.js', 'radar.js', 'dash.js',
+  'styles.css', 'sw.js', 'manifest.webmanifest', 'printers.json', 'trends-snapshot.json']);
+const appFileFor = (pathname) => {
+  const f = pathname === '/' ? 'index.html' : pathname.slice(1);
+  return APP_FILES.has(f) || /^icons\/[\w-]+\.png$/.test(f) ? f : null;
+};
+const TYPES = { html: 'text/html', js: 'text/javascript', css: 'text/css', json: 'application/json', webmanifest: 'application/manifest+json', png: 'image/png' };
+const appCache = new Map();
+async function serveApp(pathname, res) {
+  const file = appFileFor(pathname);
+  if (!file) { res.writeHead(404); return res.end(); }
+  const type = TYPES[file.split('.').pop()] || 'application/octet-stream';
+  let body = appCache.get(file);
+  if (!body || Date.now() - body.at > 2 * 60 * 1000) {
+    try {
+      const r = await fetch(APP_URL + file, { signal: AbortSignal.timeout(8000) });
+      if (r.ok) { body = { at: Date.now(), data: Buffer.from(await r.arrayBuffer()) }; appCache.set(file, body); }
+    } catch {}
+  }
+  if (!body) {
+    try { body = { at: 0, data: fs.readFileSync(path.join(__dirname, '..', file)) }; } catch { res.writeHead(404); return res.end(); }
+  }
+  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' });
+  res.end(body.data);
+}
+
 http.createServer(async (req, res) => {
   const origin = req.headers.origin;
   const url = new URL(req.url, 'http://x');
@@ -354,6 +388,30 @@ http.createServer(async (req, res) => {
       trends.run().catch(() => {});
       return send(res, 202, { ok: true }, origin);
     }
+    const pm = url.pathname.match(/^\/api\/printer\/([\w-]+)(\/[a-z]+)?$/);
+    if (pm) {
+      const p = printers.get(pm[1]);
+      if (!p) return send(res, 404, { error: 'unknown printer' }, origin);
+      const sub = pm[2] || '';
+      const full = p.cfg.type === 'moonraker';
+      if (req.method === 'GET' && sub === '') {
+        const extra = { power: p.power?.watts ?? null, todayWh: Math.round(usage.todayWh(p.cfg.id)), state: p.status.state || 'connecting', full };
+        if (full) return send(res, 200, await dash.view(p, extra), origin);
+        const { lastSeen, ...s } = p.status;
+        return send(res, 200, { id: p.cfg.id, name: p.cfg.name, model: p.cfg.model, type: p.cfg.type, ...extra, status: { ...s, file: prettyFile(s.file) } }, origin);
+      }
+      if (!full) return send(res, 400, { error: 'not supported for this printer yet' }, origin);
+      if (req.method === 'GET' && sub === '/files') return send(res, 200, { files: await dash.files(p) }, origin);
+      if (req.method === 'GET' && sub === '/thumb') {
+        if (origin && config.allowedOrigins.includes(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
+        return dash.thumbnail(p, url.searchParams.get('path') || '', res);
+      }
+      if (req.method === 'POST' && sub === '/action') {
+        try { return send(res, 200, { ok: true, message: await dash.action(p, await readBody(req), log) }, origin); }
+        catch (err) { return send(res, 400, { error: err.message }, origin); }
+      }
+      return send(res, 404, { error: 'not found' }, origin);
+    }
     if (req.method === 'GET' && url.pathname === '/api/push-key') {
       return send(res, 200, { publicKey: vapid.publicKey }, origin);
     }
@@ -396,6 +454,7 @@ http.createServer(async (req, res) => {
       }
       return send(res, 200, { ok: true, sent: messages.length }, origin);
     }
+    if (req.method === 'GET' && !url.pathname.startsWith('/api/')) return serveApp(url.pathname, res);
     send(res, 404, { error: 'not found' }, origin);
   } catch (err) {
     log('API error:', err.message);

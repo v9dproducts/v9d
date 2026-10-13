@@ -13,9 +13,11 @@ const store = {
 };
 
 // ---------- UI helpers ----------
-function setHeader(title, { back = false, actions = '' } = {}) {
+let backTarget = '#/';
+function setHeader(title, { back = false, backTo = '#/', actions = '' } = {}) {
   $('#title').textContent = title;
   $('#backBtn').hidden = !back;
+  backTarget = backTo;
   $('#actions').innerHTML = actions;
   document.title = title === 'V9D' ? 'V9D' : `${title} · V9D`;
 }
@@ -32,7 +34,7 @@ function closeSheet() {
   $('#sheet').innerHTML = '';
 }
 $('#sheetBackdrop').addEventListener('click', closeSheet);
-$('#backBtn').addEventListener('click', () => { location.hash = '#/'; });
+$('#backBtn').addEventListener('click', () => { location.hash = backTarget; });
 
 // ---------- Printers module ----------
 const Printers = {
@@ -62,8 +64,9 @@ const Printers = {
 
   async render() {
     const list = await this.load();
-    setHeader('3D Printers', {
+    setHeader('Manage printers', {
       back: true,
+      backTo: '#/printers',
       actions: `<button class="icon-btn" id="openAlerts" aria-label="Notifications">${Alerts.bellIcon()}</button>
                 <button class="icon-btn" id="addPrinter" aria-label="Add printer">+</button>`,
     });
@@ -108,7 +111,7 @@ const Printers = {
   // Live status from the V9D monitor (only reachable with Tailscale on).
   async refreshStatus() {
     clearTimeout(this.statusTimer);
-    if (location.hash !== '#/printers') return;
+    if (location.hash !== '#/printers/manage') return;
     let data = null, error = '';
     try { data = await Monitor.get('/api/status'); } catch (e) { error = e.message; }
     // The monitor reports printers by the ids in printers.json; match by IP too, in case
@@ -234,7 +237,10 @@ const Printers = {
 // ---------- V9D monitor (runs on the home laptop, reached over Tailscale) ----------
 const Monitor = {
   DEFAULT: 'https://niks.tail09fd44.ts.net',
-  base() { return (store.get('monitorUrl', '') || this.DEFAULT).replace(/\/+$/, ''); },
+  // When the app is opened from the monitor itself (the Tailscale address, or locally on the
+  // home PC), talk to that same address — desktop browsers block the cross-site route.
+  servedByMonitor() { return location.hostname.endsWith('.ts.net') || location.port === '8787'; },
+  base() { return (store.get('monitorUrl', '') || (this.servedByMonitor() ? location.origin : this.DEFAULT)).replace(/\/+$/, ''); },
   async get(path) {
     const res = await fetch(this.base() + path, { signal: AbortSignal.timeout(5000), cache: 'no-store' });
     if (!res.ok) throw new Error(`Monitor replied ${res.status}`);
@@ -333,11 +339,16 @@ const Alerts = {
 
 // ---------- Module registry (add new functions here) ----------
 const MODULES = [
-  { route: 'printers', name: '3D Printers', glyph: '🖨️', sub: 'Network printers', render: () => Printers.render() },
+  { route: 'printers', name: '3D Printers', glyph: '🖨️', sub: 'Live dashboard & controls', render: () => Dash.render() },
   { route: 'usage', name: 'Usage & Costs', glyph: '💷', sub: 'Material & electricity', render: () => UsagePage.render() },
   { route: 'power', name: 'Live Power', glyph: '⚡', sub: 'Watts right now', render: () => PowerPage.render() },
   { route: 'maintenance', name: 'Maintenance', glyph: '🔧', sub: 'Parts & service', render: () => MaintPage.render() },
   { route: 'radar', name: 'Trend Radar', glyph: '📡', sub: 'What to make next', render: () => RadarPage.render() },
+];
+
+// Pages reached from inside a module (not shown as home tiles).
+const SUBPAGES = [
+  { route: 'printers/manage', render: () => Printers.render() },
 ];
 
 function renderHome() {
@@ -358,7 +369,7 @@ function renderHome() {
 function route() {
   closeSheet();
   const name = location.hash.replace(/^#\/?/, '');
-  const mod = MODULES.find((m) => m.route === name);
+  const mod = MODULES.find((m) => m.route === name) || SUBPAGES.find((m) => m.route === name);
   mod ? mod.render() : renderHome();
   window.scrollTo(0, 0);
 }
