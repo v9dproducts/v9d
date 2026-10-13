@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy so phones pick up the new files.
-const VERSION = 'v9d-19';
+const VERSION = 'v9d-20';
 const SHELL = [
   './',
   'index.html',
@@ -16,6 +16,8 @@ const SHELL = [
   'manifest.webmanifest',
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
+  'icons/favicon-32.png',
+  'icons/favicon-64.png',
   'icons/icon-512.png',
   'icons/logo-banner.png',
 ];
