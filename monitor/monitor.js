@@ -312,9 +312,9 @@ const APP_FILES = new Set(['index.html', 'app.js', 'costs.js', 'maint.js', 'main
   'styles.css', 'sw.js', 'manifest.webmanifest', 'printers.json', 'trends-snapshot.json']);
 const appFileFor = (pathname) => {
   const f = pathname === '/' ? 'index.html' : pathname.slice(1);
-  return APP_FILES.has(f) || /^icons\/[\w-]+\.png$/.test(f) ? f : null;
+  return APP_FILES.has(f) || /^icons\/[\w-]+\.(png|jpg)$/.test(f) ? f : null;
 };
-const TYPES = { html: 'text/html', js: 'text/javascript', css: 'text/css', json: 'application/json', webmanifest: 'application/manifest+json', png: 'image/png' };
+const TYPES = { html: 'text/html', js: 'text/javascript', css: 'text/css', json: 'application/json', webmanifest: 'application/manifest+json', png: 'image/png', jpg: 'image/jpeg' };
 const appCache = new Map();
 async function serveApp(pathname, res) {
   const file = appFileFor(pathname);

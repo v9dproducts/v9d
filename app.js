@@ -374,6 +374,16 @@ function route() {
   window.scrollTo(0, 0);
 }
 
+// Splash: show the logo briefly once per app launch, then fade into the app.
+(() => {
+  const splash = $('#splash');
+  if (!splash) return;
+  let seen = false;
+  try { seen = sessionStorage.getItem('v9d:splash') === '1'; sessionStorage.setItem('v9d:splash', '1'); } catch {}
+  if (seen) { splash.remove(); return; }
+  setTimeout(() => { splash.classList.add('hide'); setTimeout(() => splash.remove(), 500); }, 1100);
+})();
+
 window.addEventListener('hashchange', route);
 route();
 

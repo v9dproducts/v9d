@@ -12,6 +12,9 @@
   --accent: #F47A20;
   --on-accent: #111111;
   --accent-ink: #A34C00; /* orange for small text: readable on white */
+  --page: #14181A;        /* dark charcoal behind everything, matches the logo image's edges */
+  --on-bg: #FFFFFF;       /* text sitting directly on the background image */
+  --on-bg-muted: rgba(255, 255, 255, .72);
   --ok: #1A8A4A;
   --warn: #A35F00;
   --warn-fill: #F2B233;
@@ -27,14 +30,14 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+html { background: var(--page); }
 html, body {
   margin: 0;
-  background: var(--bg);
   color: var(--text);
   font: 16px/1.4 var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
-body { min-height: 100dvh; overscroll-behavior-y: none; }
+body { min-height: 100dvh; overscroll-behavior-y: none; background: transparent; /* the logo layer (body::before) shows through */ }
 button, input, textarea { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
@@ -354,7 +357,7 @@ body.is-home .topbar { display: none; }
 .w-big { font-family: var(--font-display); font-weight: 800; font-size: 27px; line-height: 1.05; }
 .w-sub { font-size: 13px; color: var(--muted); }
 .w-dot { position: absolute; top: 16px; right: 16px; width: 10px; height: 10px; border-radius: 5px; background: var(--accent); }
-.w-hero { grid-column: 1 / -1; padding: 0; overflow: hidden; background: var(--dark); color: var(--on-dark); gap: 0; }
+.w-hero { grid-column: 1 / -1; padding: 0; overflow: hidden; background: var(--dark); color: var(--on-dark); gap: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
 .w-cam { position: relative; aspect-ratio: 16 / 8; background: #262626; display: grid; place-items: center; }
 .w-cam iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
 .w-cam-idle { font-size: 44px; opacity: .8; }
@@ -379,3 +382,60 @@ body.is-home .topbar { display: none; }
 .hub .hub-row { margin-bottom: 0; }
 .hub-row b { font-size: 16px; }
 .chev { color: var(--muted); font-size: 22px; }
+
+/* Background: the V9D logo image. Portrait: logo across the top, fading into charcoal.
+   Landscape: fills the screen, darkened so cards and text stay readable. */
+body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(20, 24, 26, 0) 0, rgba(20, 24, 26, 0) 44vw, var(--page) 63.2vw),
+    url(icons/bg-logo.jpg) top center / 100% auto no-repeat,
+    var(--page); }
+@media (min-aspect-ratio: 1/1) {
+  body::before { background: linear-gradient(rgba(20, 24, 26, .62), rgba(20, 24, 26, .78)), url(icons/bg-logo.jpg) center / cover no-repeat, var(--page); }
+}
+
+/* Things that sit directly on the background read in white */
+.topbar { background: rgba(20, 24, 26, .62); border-bottom-color: rgba(255, 255, 255, .08); color: var(--on-bg); }
+.topbar .back { color: var(--on-bg); }
+.topbar .icon-btn { background: rgba(255, 255, 255, .14); color: var(--on-bg); }
+.home-head { color: var(--on-bg); padding-top: calc(var(--safe-top) + 18px); }
+.home-head .muted { color: var(--on-bg-muted); }
+.home-logo { display: none; }
+@media (max-aspect-ratio: 1/1) { .home-head { padding-top: max(calc(var(--safe-top) + 18px), calc(63.2vw - 6px)); } }
+#view h3.day, #view .hint, #view .empty, .calc-wrap summary, .radar-status .muted { color: var(--on-bg-muted); }
+#view .empty a { color: var(--on-bg); }
+.radar-status .linkbtn { color: var(--accent); }
+.dpage-head h2 { color: var(--on-bg); }
+.dpage-head .status { background: var(--surface); padding: 3px 10px; border-radius: 999px; font-size: 13px; }
+.dot { background: rgba(255, 255, 255, .3); }
+.dot.on { background: var(--on-bg); }
+.dash-arrow { color: var(--on-bg-muted); }
+#view .btn.primary { background: var(--accent); color: var(--on-accent); }
+
+/* Splash: the logo for a moment when the app opens */
+#splash { position: fixed; inset: 0; z-index: 100; background: var(--page); display: grid; place-items: center; transition: opacity .45s ease-out; }
+#splash img { width: min(88vw, 720px); height: auto; }
+#splash.hide { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { #splash { transition: none; } }
+
+/* Inner pages: the logo stays as a subtle backdrop so titles and cards read clearly */
+body:not(.is-home)::before {
+  background:
+    linear-gradient(rgba(20, 24, 26, .84), rgba(20, 24, 26, .84)),
+    linear-gradient(to bottom, rgba(20, 24, 26, 0) 0, rgba(20, 24, 26, 0) 44vw, var(--page) 63.2vw),
+    url(icons/bg-logo.jpg) top center / 100% auto no-repeat,
+    var(--page);
+}
+@media (min-aspect-ratio: 1/1) {
+  body:not(.is-home)::before { background: linear-gradient(rgba(20, 24, 26, .86), rgba(20, 24, 26, .9)), url(icons/bg-logo.jpg) center / cover no-repeat, var(--page); }
+}
+
+/* Buttons and chips placed directly on the dark background */
+#view .ctrl-row .btn, #view .toolbar .btn, #view > .btn, .dpage [data-body] > .btn {
+  background: rgba(255, 255, 255, .12); color: var(--on-bg); }
+#view .ctrl-row .btn.primary, #view .toolbar .btn.primary, #view > .btn.primary, .dpage [data-body] > .btn.primary {
+  background: var(--surface); color: var(--text); }
+#view .ctrl-row .btn.danger-fill { background: var(--danger); color: #FFFFFF; }
+#view .ctrl-row .btn.on { background: rgba(244, 122, 32, .3); color: var(--on-bg); }
+#view .chips .chip { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .16); color: var(--on-bg-muted); }
+#view .chips .chip.on { background: var(--surface); border-color: var(--surface); color: var(--text); }

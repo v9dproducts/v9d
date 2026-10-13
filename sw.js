@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy so phones pick up the new files.
-const VERSION = 'v9d-20';
+const VERSION = 'v9d-21';
 const SHELL = [
   './',
   'index.html',
@@ -18,6 +18,7 @@ const SHELL = [
   'icons/icon-192.png',
   'icons/favicon-32.png',
   'icons/favicon-64.png',
+  'icons/bg-logo.jpg',
   'icons/icon-512.png',
   'icons/logo-banner.png',
 ];
