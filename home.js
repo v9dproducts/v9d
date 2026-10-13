@@ -43,7 +43,7 @@ const HomePage = {
             <span class="w-chip ${busy ? 'busy' : ''}">${esc(chip)}</span></div>
           <div class="w-hero-body">
             <div class="w-hero-row"><b>${esc(busy && s.file ? s.file : hero.name)}</b>
-              <span>${busy && s.timeLeft ? `done ${finishTime(s.timeLeft)}` : busy ? '' : esc(hero.name)}</span></div>
+              <span>${busy && s.timeLeft ? `done ${finishTime(s.timeLeft)}` : ''}</span></div>
             ${busy ? `<div class="w-bar"><i style="width:${s.progress}%"></i></div>` : `<div class="w-sub">${offline ? 'Can’t reach the monitor right now' : 'Ready for the next print'}</div>`}
           </div>
         </a>`;

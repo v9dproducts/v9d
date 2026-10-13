@@ -233,7 +233,7 @@ h3.day { font-size: 13px; color: var(--muted); font-weight: 600; margin: 18px 4p
 .sheet #howTo { margin-bottom: 10px; }
 
 /* Trend Radar */
-.banner.warn { color: var(--text); background: rgba(200, 50, 58, .08); border: 1px solid rgba(200, 50, 58, .3); }
+.banner.warn { color: #7A1C21; background: #FBEAEA; border: 1px solid #F0C4C6; } /* solid, so it reads on light or dark */
 .radar-status { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 0 2px 10px; }
 .radar-summary { margin: 6px 0 0; font-size: 15px; line-height: 1.45; }
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 3px; margin: 4px 0 12px; }
@@ -383,15 +383,16 @@ body.is-home .topbar { display: none; }
 .hub-row b { font-size: 16px; }
 .chev { color: var(--muted); font-size: 22px; }
 
-/* Background: the V9D logo image. Portrait: logo across the top, fading into charcoal.
-   Landscape: fills the screen, darkened so cards and text stay readable. */
+/* Background: the V9D logo image as a dimmed backdrop behind every page.
+   Portrait: logo across the top, fading into charcoal. Landscape: fills the screen. */
 body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
+    linear-gradient(rgba(20, 24, 26, .84), rgba(20, 24, 26, .84)),
     linear-gradient(to bottom, rgba(20, 24, 26, 0) 0, rgba(20, 24, 26, 0) 44vw, var(--page) 63.2vw),
     url(icons/bg-logo.jpg) top center / 100% auto no-repeat,
     var(--page); }
 @media (min-aspect-ratio: 1/1) {
-  body::before { background: linear-gradient(rgba(20, 24, 26, .62), rgba(20, 24, 26, .78)), url(icons/bg-logo.jpg) center / cover no-repeat, var(--page); }
+  body::before { background: linear-gradient(rgba(20, 24, 26, .86), rgba(20, 24, 26, .9)), url(icons/bg-logo.jpg) center / cover no-repeat, var(--page); }
 }
 
 /* Things that sit directly on the background read in white */
@@ -401,7 +402,6 @@ body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-even
 .home-head { color: var(--on-bg); padding-top: calc(var(--safe-top) + 18px); }
 .home-head .muted { color: var(--on-bg-muted); }
 .home-logo { display: none; }
-@media (max-aspect-ratio: 1/1) { .home-head { padding-top: max(calc(var(--safe-top) + 18px), calc(63.2vw - 6px)); } }
 #view h3.day, #view .hint, #view .empty, .calc-wrap summary, .radar-status .muted { color: var(--on-bg-muted); }
 #view .empty a { color: var(--on-bg); }
 .radar-status .linkbtn { color: var(--accent); }
@@ -417,18 +417,6 @@ body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-even
 #splash img { width: min(88vw, 720px); height: auto; }
 #splash.hide { opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { #splash { transition: none; } }
-
-/* Inner pages: the logo stays as a subtle backdrop so titles and cards read clearly */
-body:not(.is-home)::before {
-  background:
-    linear-gradient(rgba(20, 24, 26, .84), rgba(20, 24, 26, .84)),
-    linear-gradient(to bottom, rgba(20, 24, 26, 0) 0, rgba(20, 24, 26, 0) 44vw, var(--page) 63.2vw),
-    url(icons/bg-logo.jpg) top center / 100% auto no-repeat,
-    var(--page);
-}
-@media (min-aspect-ratio: 1/1) {
-  body:not(.is-home)::before { background: linear-gradient(rgba(20, 24, 26, .86), rgba(20, 24, 26, .9)), url(icons/bg-logo.jpg) center / cover no-repeat, var(--page); }
-}
 
 /* Buttons and chips placed directly on the dark background */
 #view .ctrl-row .btn, #view .toolbar .btn, #view > .btn, .dpage [data-body] > .btn {
