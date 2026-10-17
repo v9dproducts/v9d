@@ -237,7 +237,7 @@ const Printers = {
 
 // ---------- V9D monitor (runs on the home laptop, reached over Tailscale) ----------
 const Monitor = {
-  DEFAULT: 'https://niks.tail09fd44.ts.net',
+  DEFAULT: 'https://v9d.tail09fd44.ts.net',
   // When the app is opened from the monitor itself (the Tailscale address, or locally on the
   // home PC), talk to that same address — desktop browsers block the cross-site route.
   servedByMonitor() { return location.hostname.endsWith('.ts.net') || location.port === '8787'; },
