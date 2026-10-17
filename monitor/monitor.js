@@ -11,6 +11,8 @@ const { Usage, moonrakerHistory, crealityHistory } = require('./usage');
 const { Maintenance, sampleMessages } = require('./maintenance');
 const { Trends } = require('./trends');
 const dash = require('./k2dash');
+const k1 = require('./k1dash');
+const DASH = { moonraker: dash, creality: k1 }; // full dashboard module per printer type
 const { Slicer } = require('./slicer');
 
 const DATA = path.join(__dirname, 'data');
@@ -213,6 +215,7 @@ function watchCreality(p) {
   const MAP = { 0: 'idle', 1: 'printing', 2: 'complete', 3: 'error', 4: 'cancelled', 5: 'paused' };
   const id = p.cfg.id;
   let ws, stopped = false, lastMsg = 0, raw = {}, lastPower = 0, historyWaiters = [];
+  const replyWaiters = {}; // reply key -> callbacks (file list etc.)
 
   const connect = () => {
     if (stopped) return;
@@ -224,7 +227,10 @@ function watchCreality(p) {
       if (text.includes('heart_beat')) { try { ws.send('ok'); } catch {} return; }
       let m; try { m = JSON.parse(text); } catch { return; }
       if (m.historyList) { historyWaiters.splice(0).forEach((w) => w(m.historyList)); return; }
+      for (const k of Object.keys(m)) if (replyWaiters[k]?.length) { replyWaiters[k].splice(0).forEach((w) => w(m[k])); return; }
+      if (m.retGcodeFileInfo2) return;
       Object.assign(raw, m);
+      k1.recordLive(p, raw);
       if (raw.state === undefined) return;
       const err = raw.err || {};
       const errorCode = err.errcode ? `${err.errcode}${err.key ? '/' + err.key : ''}` : '';
@@ -260,6 +266,22 @@ function watchCreality(p) {
     historyWaiters.push((list) => { clearTimeout(timer); resolve(crealityHistory(list)); });
     ws.send(JSON.stringify({ method: 'get', params: { reqHistory: 1 } }));
   });
+
+  // Commands and requests for the dashboard (k1dash.js).
+  p.k1 = {
+    send(params) {
+      if (!ws || ws.readyState !== 1) throw new Error(`${p.cfg.name} isn’t connected`);
+      ws.send(JSON.stringify({ method: 'set', params }));
+    },
+    request(params, replyKey, ms = 10000) {
+      return new Promise((resolve, reject) => {
+        if (!ws || ws.readyState !== 1) return reject(new Error(`${p.cfg.name} isn’t connected`));
+        const timer = setTimeout(() => reject(new Error('the printer didn’t reply')), ms);
+        (replyWaiters[replyKey] ||= []).push((v) => { clearTimeout(timer); resolve(v); });
+        ws.send(JSON.stringify({ method: 'get', params }));
+      });
+    },
+  };
 
   return { stop: () => { stopped = true; clearInterval(guard); try { ws.close(); } catch {} }, history };
 }
@@ -400,22 +422,22 @@ http.createServer(async (req, res) => {
       const p = printers.get(pm[1]);
       if (!p) return send(res, 404, { error: 'unknown printer' }, origin);
       const sub = pm[2] || '';
-      const full = p.cfg.type === 'moonraker';
+      const d = DASH[p.cfg.type], full = !!d;
       if (req.method === 'GET' && sub === '') {
         const extra = { power: p.power?.watts ?? null, todayWh: Math.round(usage.todayWh(p.cfg.id)), state: p.status.state || 'connecting', full };
-        if (full) return send(res, 200, await dash.view(p, extra), origin);
+        if (full) return send(res, 200, await d.view(p, extra), origin);
         const { lastSeen, ...s } = p.status;
         return send(res, 200, { id: p.cfg.id, name: p.cfg.name, model: p.cfg.model, type: p.cfg.type, ...extra, status: { ...s, file: prettyFile(s.file) } }, origin);
       }
       if (!full) return send(res, 400, { error: 'not supported for this printer yet' }, origin);
-      if (req.method === 'GET' && sub === '/cfs') return send(res, 200, await dash.cfs(p), origin);
-      if (req.method === 'GET' && sub === '/files') return send(res, 200, { files: await dash.files(p) }, origin);
+      if (req.method === 'GET' && sub === '/cfs') return send(res, 200, await d.cfs(p), origin);
+      if (req.method === 'GET' && sub === '/files') return send(res, 200, { files: await d.files(p) }, origin);
       if (req.method === 'GET' && sub === '/thumb') {
         if (origin && config.allowedOrigins.includes(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
-        return dash.thumbnail(p, url.searchParams.get('path') || '', res);
+        return d.thumbnail(p, url.searchParams.get('path') || '', res);
       }
       if (req.method === 'POST' && sub === '/action') {
-        try { return send(res, 200, { ok: true, message: await dash.action(p, await readBody(req), log) }, origin); }
+        try { return send(res, 200, { ok: true, message: await d.action(p, await readBody(req), log) }, origin); }
         catch (err) { return send(res, 400, { error: err.message }, origin); }
       }
       return send(res, 404, { error: 'not found' }, origin);
@@ -442,8 +464,8 @@ http.createServer(async (req, res) => {
           const body = await readBody(req);
           const p = printers.get(job.settings?.printer);
           if (job.state !== 'sliced' || !job.result) throw new Error('Slice the file first');
-          if (!p || p.cfg.type !== 'moonraker') throw new Error('This printer can’t receive files from V9D yet');
-          const message = await dash.upload(p, job.result.gcode, job.result.file, { start: body.start === true, plateClear: body.plateClear });
+          if (!p || !DASH[p.cfg.type]) throw new Error('This printer can’t receive files from V9D yet');
+          const message = await DASH[p.cfg.type].upload(p, job.result.gcode, job.result.file, { start: body.start === true, plateClear: body.plateClear });
           log(`${p.cfg.name}: ${job.result.file} sent from V9D${body.start ? ' and started' : ''}`);
           return send(res, 200, { ok: true, message }, origin);
         }

@@ -16,10 +16,11 @@ const MAX_UPLOAD = 200 * 1024 * 1024;
 const KEEP_DAYS = 7;
 const SLOTS = ['A', 'B', 'C', 'D'];
 
-// What V9D offers, per printer. Only the K2 Plus (Moonraker upload + CFS) for now.
+// What V9D offers, per printer. cfs: colours map onto CFS slots A–D (T0–T3).
 const PRINTERS = {
   'k2-plus': {
     machine: 'Creality K2 Plus 0.4 nozzle',
+    cfs: true,
     quality: {
       draft: { label: 'Draft · 0.24 mm', process: '0.24mm Draft @Creality K2 Plus 0.4 nozzle' },
       standard: { label: 'Standard · 0.20 mm', process: '0.20mm Standard @Creality K2 Plus 0.4 nozzle' },
@@ -33,6 +34,26 @@ const PRINTERS = {
       PETG: 'CR-PETG @K2 Plus-all',
       ABS: 'CR-ABS @K2 Plus-all',
       TPU: 'CR-TPU @K2 Plus-all',
+    },
+  },
+  'k1-max': {
+    machine: 'Creality K1 Max (0.4 nozzle)',
+    cfs: false,
+    quality: {
+      draft: { label: 'Draft · 0.24 mm', process: '0.24mm Draft @Creality K1Max (0.4 nozzle)' },
+      standard: { label: 'Standard · 0.20 mm', process: '0.20mm Standard @Creality K1Max (0.4 nozzle)' },
+      fine: { label: 'Fine · 0.16 mm', process: '0.16mm Optimal @Creality K1Max (0.4 nozzle)' },
+      extrafine: { label: 'Extra fine · 0.12 mm', process: '0.12mm Fine @Creality K1Max (0.4 nozzle)' },
+    },
+    materials: {
+      PLA: 'Creality Generic PLA',
+      'PLA High Speed': 'Creality Generic PLA High Speed @K1-all',
+      'PLA Matte': 'Creality Generic PLA Matte @K1-all',
+      'PLA Silk': 'Creality Generic PLA Silk @K1-all',
+      PETG: 'Creality Generic PETG',
+      ABS: 'Creality Generic ABS',
+      ASA: 'Creality Generic ASA',
+      TPU: 'Creality Generic TPU',
     },
   },
 };
@@ -131,6 +152,7 @@ class Slicer {
     const p = PRINTERS[printerId];
     if (!p) return null;
     return {
+      cfs: p.cfs,
       quality: Object.entries(p.quality).map(([id, q]) => ({ id, label: q.label })),
       materials: Object.keys(p.materials),
     };
@@ -187,6 +209,8 @@ class Slicer {
       if (!SLOTS.includes(c.slot)) throw new Error('Unknown CFS slot');
       if (!p.materials[c.material]) throw new Error(`Unknown material ${c.material}`);
     }
+    const usedCount = job.colours.filter((c) => c.used).length;
+    if (!p.cfs && usedCount > 1) throw new Error(`This file uses ${usedCount} colours and this printer prints one — choose the K2 Plus`);
     if (job.state === 'slicing') throw new Error('Already slicing');
     job.state = 'queued';
     job.settings = { ...settings, infill, plate, colours };
@@ -236,7 +260,7 @@ class Slicer {
       const produced = fs.readdirSync(outDir).filter((f) => f.endsWith('.gcode'));
       if (!produced.length) throw new Error(`OrcaSlicer couldn’t slice this file (code ${code})`);
       const gcodeFile = path.join(outDir, produced.find((f) => f === `plate_${s.plate}.gcode`) || produced[0]);
-      job.result = this.finish(job, gcodeFile, densities);
+      job.result = this.finish(job, gcodeFile, densities, p);
       job.state = 'sliced';
       this.log(`Slicer: ${job.name} sliced in ${Math.round((Date.now() - job.started) / 1000)} s`);
     } catch (err) {
@@ -247,9 +271,11 @@ class Slicer {
   }
 
   // Maps the model's colour numbers onto CFS slots (T0..T3 = slots A..D) and reads the summary.
-  finish(job, gcodeFile, densities) {
+  // Single-spool printers get no tool-change commands at all.
+  finish(job, gcodeFile, densities, p) {
     const slotOf = job.settings.colours.map((c) => SLOTS.indexOf(c.slot));
-    const lines = fs.readFileSync(gcodeFile, 'utf8').split('\n');
+    let lines = fs.readFileSync(gcodeFile, 'utf8').split('\n');
+    if (!p.cfs) lines = lines.filter((l) => !/^T\d+\s*(;.*)?$/.test(l));
     const header = {};
     for (let i = 0; i < lines.length; i++) {
       const t = lines[i].match(/^T(\d+)(\s.*)?$/);
@@ -263,7 +289,7 @@ class Slicer {
     const mm = (header['filament used [mm]'] || '').split(',').map(Number);
     const area = Math.PI * 0.875 * 0.875; // 1.75 mm filament, mm²
     const perColour = job.settings.colours.map((c, i) => ({
-      slot: c.slot, material: c.material, colour: c.colour,
+      slot: p.cfs ? c.slot : null, material: c.material, colour: c.colour,
       grams: Math.round(((mm[i] || 0) * area / 1000) * densities[i] * 10) / 10,
     })).filter((x) => x.grams > 0);
     return {
