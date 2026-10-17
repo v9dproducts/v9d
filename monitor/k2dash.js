@@ -181,4 +181,38 @@ async function action(p, body, log) {
   }
 }
 
-module.exports = { DASH_OBJECTS, recordLive, view, files, thumbnail, action };
+// What's loaded in the CFS (box 1, slots A–D): material and colour, or empty.
+async function cfs(p) {
+  const box = (await moon(p.cfg, '/printer/objects/query?box')).status?.box || {};
+  const unit = box.T1 || {};
+  const types = new Map((box.same_material || []).map((m) => [m[0], m[3]]));
+  const slots = ['A', 'B', 'C', 'D'].map((slot, i) => {
+    const code = unit.material_type?.[i], col = unit.color_value?.[i];
+    const empty = !code || code === '-1';
+    return {
+      slot, empty,
+      material: empty ? null : types.get(code) || null,
+      colour: empty || !col || col === '-1' ? null : '#' + col.slice(-6).toUpperCase(),
+    };
+  });
+  return { connected: unit.state === 'connect', slots };
+}
+
+// Uploads G-code to the printer, optionally starting it (same checks as starting a stored file).
+async function upload(p, file, name, opts = {}) {
+  const st = p.live?.print_stats?.state;
+  if (opts.start) {
+    if (opts.plateClear !== true) throw new Error('Confirm the build plate is clear first');
+    if (st === 'printing' || st === 'paused') throw new Error('The printer is busy — sent without starting is still possible');
+  }
+  const form = new FormData();
+  form.append('root', 'gcodes');
+  if (opts.start) form.append('print', 'true');
+  form.append('file', new Blob([require('fs').readFileSync(file)]), name);
+  const res = await fetch(base(p.cfg) + '/server/files/upload', { method: 'POST', body: form, signal: AbortSignal.timeout(120000) });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error?.message || `printer replied ${res.status}`);
+  return opts.start ? 'Sent — the print is starting' : 'Sent to the printer';
+}
+
+module.exports = { DASH_OBJECTS, recordLive, view, files, thumbnail, action, cfs, upload };

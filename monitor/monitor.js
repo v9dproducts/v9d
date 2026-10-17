@@ -11,6 +11,7 @@ const { Usage, moonrakerHistory, crealityHistory } = require('./usage');
 const { Maintenance, sampleMessages } = require('./maintenance');
 const { Trends } = require('./trends');
 const dash = require('./k2dash');
+const { Slicer } = require('./slicer');
 
 const DATA = path.join(__dirname, 'data');
 fs.mkdirSync(DATA, { recursive: true });
@@ -70,6 +71,7 @@ const usage = new Usage(DATA, log);
 usage.onSessionEnd = (id) => setTimeout(() => syncHistory(id), 20000);
 const maintenance = new Maintenance(DATA, usage, (...a) => notify(...a), log);
 const trends = new Trends(DATA, config, log);
+const slicer = new Slicer(DATA, log);
 
 // Motors stay energised for a while after a print, then the firmware switches them off.
 function holding(id, state) {
@@ -406,6 +408,7 @@ http.createServer(async (req, res) => {
         return send(res, 200, { id: p.cfg.id, name: p.cfg.name, model: p.cfg.model, type: p.cfg.type, ...extra, status: { ...s, file: prettyFile(s.file) } }, origin);
       }
       if (!full) return send(res, 400, { error: 'not supported for this printer yet' }, origin);
+      if (req.method === 'GET' && sub === '/cfs') return send(res, 200, await dash.cfs(p), origin);
       if (req.method === 'GET' && sub === '/files') return send(res, 200, { files: await dash.files(p) }, origin);
       if (req.method === 'GET' && sub === '/thumb') {
         if (origin && config.allowedOrigins.includes(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
@@ -415,6 +418,36 @@ http.createServer(async (req, res) => {
         try { return send(res, 200, { ok: true, message: await dash.action(p, await readBody(req), log) }, origin); }
         catch (err) { return send(res, 400, { error: err.message }, origin); }
       }
+      return send(res, 404, { error: 'not found' }, origin);
+    }
+    // ---------- Slicing (OrcaSlicer on this PC) ----------
+    if (req.method === 'GET' && url.pathname === '/api/slice/options') {
+      const o = slicer.options(url.searchParams.get('printer'));
+      if (!o) return send(res, 404, { error: 'This printer can’t slice from V9D yet' }, origin);
+      return send(res, 200, { available: slicer.available(), ...o }, origin);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/slice/upload') {
+      try { return send(res, 200, slicer.public(await slicer.upload(req, url.searchParams.get('name') || '')), origin); }
+      catch (err) { return send(res, 400, { error: err.message }, origin); }
+    }
+    const sm = url.pathname.match(/^\/api\/slice\/([a-f0-9]{12})(\/[a-z]+)?$/);
+    if (sm) {
+      const job = slicer.get(sm[1]);
+      if (!job) return send(res, 404, { error: 'This upload has expired — upload the file again' }, origin);
+      const sub = sm[2] || '';
+      if (req.method === 'GET' && sub === '') return send(res, 200, slicer.public(job), origin);
+      try {
+        if (req.method === 'POST' && sub === '/run') return send(res, 200, slicer.public(slicer.run(job, await readBody(req))), origin);
+        if (req.method === 'POST' && sub === '/send') {
+          const body = await readBody(req);
+          const p = printers.get(job.settings?.printer);
+          if (job.state !== 'sliced' || !job.result) throw new Error('Slice the file first');
+          if (!p || p.cfg.type !== 'moonraker') throw new Error('This printer can’t receive files from V9D yet');
+          const message = await dash.upload(p, job.result.gcode, job.result.file, { start: body.start === true, plateClear: body.plateClear });
+          log(`${p.cfg.name}: ${job.result.file} sent from V9D${body.start ? ' and started' : ''}`);
+          return send(res, 200, { ok: true, message }, origin);
+        }
+      } catch (err) { return send(res, 400, { error: err.message }, origin); }
       return send(res, 404, { error: 'not found' }, origin);
     }
     if (req.method === 'GET' && url.pathname === '/api/push-key') {
