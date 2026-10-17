@@ -348,6 +348,7 @@ const ROUTES = {
   '': () => HomePage.render(),
   printers: () => Dash.render(),
   'printers/manage': () => Printers.render(),
+  'printers/print': () => PrintPage.render(),
   business: () => BusinessPage.render(),
   usage: () => UsagePage.render(),
   power: () => PowerPage.render(),

@@ -478,3 +478,46 @@ body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-even
 .w-chip { color: #111111; }
 .field input::placeholder, .field textarea::placeholder { color: rgba(255, 255, 255, .4); }
 .maint.due { border-color: rgba(229, 72, 77, .55); }
+
+/* ---------- Print a file ---------- */
+.pick { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; cursor: pointer;
+  background: var(--surface); border: 1.5px dashed var(--line); border-radius: var(--radius); padding: 34px 16px; margin: 4px 0 12px; }
+.pick .pick-icon { color: var(--muted); }
+.pick b { font-size: 17px; }
+.print-file { display: flex; gap: 12px; align-items: center; }
+.print-file .w-col { flex: 1; min-width: 0; }
+.print-file b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg.q4 { grid-template-columns: repeat(4, 1fr); }
+.seg.q4 button { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 13px; }
+.seg.q4 small { font-size: 11px; opacity: .7; }
+h3.day #infillVal { color: var(--text); margin-left: 4px; }
+.toggles .check:last-child { border-bottom: 0; }
+.check small { display: block; font-weight: 400; }
+.plate-field { margin: 10px 0 2px; }
+.plate-field select, .colour-row select { width: 100%; padding: 10px; border-radius: 10px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); font: inherit; }
+.colour-row { display: grid; grid-template-columns: auto auto 1fr; gap: 8px 10px; align-items: center; padding: 10px 0; }
+.colour-row + .colour-row { border-top: 1px solid var(--line); }
+.colour-row:not(:has(.arrow)) { grid-template-columns: 1fr; }
+.colour-row .mat, .colour-row .slot-warn { grid-column: 1 / -1; }
+.colour-row:has(.arrow) .mat, .colour-row:has(.arrow) .slot-warn { grid-column: 3; }
+.colour-row .arrow { color: var(--muted); }
+.slot-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.slot-pick button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 4px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-weight: 700; font-size: 14px; }
+.slot-pick button.on { background: #FFFFFF; color: #111111; border-color: #FFFFFF; }
+.slot-pick button.empty { color: var(--muted); }
+.slot-warn { margin: 0; color: #F2B233; font-size: 13px; }
+.swatch { display: inline-block; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, .5); vertical-align: middle; }
+.swatch.sm { width: 14px; height: 14px; border-width: 1px; }
+.slot-pick .swatch.sm[style*="transparent"] { border-style: dashed; }
+.slicing { display: flex; gap: 12px; align-items: center; }
+.spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--surface-2); border-top-color: var(--text); animation: spin 0.9s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.result-top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.result-top > div { display: flex; flex-direction: column; }
+.result-cost { text-align: right; }
+.print-settings .btn.block { margin-top: 4px; }
+#upProgress .bar { margin-top: 8px; }
+#upProgress .bar i { transition: width .2s; }
+.print-settings + #result { margin-top: 12px; }
+.slot-pick button.on .swatch { border-color: rgba(0, 0, 0, .35); }

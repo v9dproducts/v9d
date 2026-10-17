@@ -156,7 +156,7 @@ function fullView(d) {
       ${st === 'printing' ? '<button class="btn" data-act="pause">⏸ Pause</button>' : ''}
       ${st === 'paused' ? '<button class="btn primary" data-act="resume">▶ Resume</button>' : ''}
       ${active ? '<button class="btn danger-fill" data-act="stop">■ Stop</button>' : ''}
-      ${!active ? '<button class="btn primary" data-act="files">Print a file…</button>' : ''}
+      ${!active ? '<a class="btn primary" href="#/printers/print">Print a file…</a>' : ''}
       <button class="btn ${d.light ? 'on' : ''}" data-act="light">${icon('bulb', 18)} ${d.light ? 'On' : 'Off'}</button>
     </div>
 

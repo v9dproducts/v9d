@@ -315,7 +315,7 @@ function readBody(req) {
 // (always current), falling back to the copy next to this folder.
 const APP_URL = config.printersUrl.replace(/printers\.json$/, '');
 // Explicit list — add new app files here. Nothing in monitor/ (keys, data) is ever served.
-const APP_FILES = new Set(['index.html', 'app.js', 'costs.js', 'maint.js', 'maint-help.js', 'radar.js', 'dash.js', 'home.js', 'icons.js',
+const APP_FILES = new Set(['index.html', 'app.js', 'costs.js', 'maint.js', 'maint-help.js', 'radar.js', 'dash.js', 'print.js', 'home.js', 'icons.js',
   'styles.css', 'sw.js', 'manifest.webmanifest', 'printers.json', 'trends-snapshot.json']);
 const appFileFor = (pathname) => {
   const f = pathname === '/' ? 'index.html' : pathname.slice(1);

@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy so phones pick up the new files.
-const VERSION = 'v9d-28';
+const VERSION = 'v9d-29';
 const SHELL = [
   './',
   'index.html',
@@ -11,6 +11,7 @@ const SHELL = [
   'maint.js',
   'radar.js',
   'dash.js',
+  'print.js',
   'home.js',
   'printers.json',
   'trends-snapshot.json',

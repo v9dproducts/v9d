@@ -21,7 +21,7 @@ const fmt = {
   kwh(wh) { return wh >= 10000 ? `${(wh / 1000).toFixed(1)} kWh` : `${(wh / 1000).toFixed(2)} kWh`; },
   grams(g) { return g >= 1000 ? `${(g / 1000).toFixed(2)} kg` : `${Math.round(g)} g`; },
   hours(sec) {
-    const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    const mins = Math.round(sec / 60), h = Math.floor(mins / 60), m = mins % 60;
     return h ? `${h}h ${m}m` : `${m}m`;
   },
   date(t) { return new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); },
