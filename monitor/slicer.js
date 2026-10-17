@@ -9,6 +9,7 @@ const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
+const { addPreview } = require('./preview');
 
 const ORCA = process.env.ORCA_EXE || 'C:\\Program Files\\OrcaSlicer\\orca-slicer.exe';
 const PROFILES = path.join(path.dirname(ORCA), 'resources', 'profiles', 'Creality');
@@ -283,6 +284,14 @@ class Slicer {
       const h = lines[i].match(/^; (estimated printing time \(normal mode\)|filament used \[mm\]|total layer number|total layers count) ?[=:] ?(.*)$/);
       if (h) header[h[1]] = h[2].trim();
     }
+    // Preview picture in the colours that will print (tool number = slot after the remap above).
+    const palette = [];
+    job.settings.colours.forEach((c) => { palette[p.cfs ? SLOTS.indexOf(c.slot) : 0] ??= c.colour || '#DDDDDD'; });
+    let preview = false;
+    try {
+      const pv = addPreview(lines, palette);
+      if (pv) { lines = pv.lines; fs.writeFileSync(path.join(path.dirname(gcodeFile), 'preview.png'), pv.png300); preview = true; }
+    } catch (err) { this.log(`Slicer: no preview picture for ${job.name} (${err.message})`); }
     const name = (job.name.replace(/[^\w .()-]+/g, '').trim() || 'print').slice(0, 60) + '_V9D.gcode';
     const out = path.join(path.dirname(gcodeFile), name);
     fs.writeFileSync(out, lines.join('\n'));
@@ -293,7 +302,7 @@ class Slicer {
       grams: Math.round(((mm[i] || 0) * area / 1000) * densities[i] * 10) / 10,
     })).filter((x) => x.grams > 0);
     return {
-      file: name, gcode: out,
+      file: name, gcode: out, preview,
       seconds: parseDuration(header['estimated printing time (normal mode)']),
       layers: Number(header['total layer number'] || header['total layers count']) || null,
       grams: Math.round(perColour.reduce((a, x) => a + x.grams, 0) * 10) / 10,

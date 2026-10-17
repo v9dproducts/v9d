@@ -522,3 +522,5 @@ h3.day #infillVal { color: var(--text); margin-left: 4px; }
 .print-settings + #result { margin-top: 12px; }
 .slot-pick button.on .swatch { border-color: rgba(0, 0, 0, .35); }
 .temp:disabled { opacity: 1; color: var(--text); }
+
+.result-preview { display: block; width: 180px; height: 180px; margin: 0 auto 8px; object-fit: contain; }

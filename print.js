@@ -246,6 +246,7 @@ const PrintPage = {
     return `
       <h3 class="day">Ready to print</h3>
       <div class="panel result">
+        ${r.preview ? `<img class="result-preview" src="${esc(Monitor.base())}/api/slice/${esc(j.id)}/preview?t=${esc(j.started)}" alt="Preview of the print">` : ''}
         <div class="result-top">
           <div><span class="w-big">${r.seconds ? fmt.hours(r.seconds) : '—'}</span><span class="muted">done about ${r.seconds ? finishTime(r.seconds) : '—'} if started now</span></div>
           <div class="result-cost"><span class="w-big">${fmt.money(material + energy)}</span><span class="muted">${fmt.money(material)} filament · ${fmt.money(energy)} power</span></div>

@@ -461,6 +461,12 @@ http.createServer(async (req, res) => {
       if (!job) return send(res, 404, { error: 'This upload has expired — upload the file again' }, origin);
       const sub = sm[2] || '';
       if (req.method === 'GET' && sub === '') return send(res, 200, slicer.public(job), origin);
+      if (req.method === 'GET' && sub === '/preview') {
+        const f = job.result?.preview && path.join(path.dirname(job.result.gcode), 'preview.png');
+        if (!f || !fs.existsSync(f)) return send(res, 404, { error: 'no preview' }, origin);
+        res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store', ...(origin && config.allowedOrigins.includes(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) });
+        return res.end(fs.readFileSync(f));
+      }
       try {
         if (req.method === 'POST' && sub === '/run') return send(res, 200, slicer.public(slicer.run(job, await readBody(req))), origin);
         if (req.method === 'POST' && sub === '/send') {
