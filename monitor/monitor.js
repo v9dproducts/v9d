@@ -124,6 +124,11 @@ function printMessage(event, name, s) {
 }
 function notifyPrint(event, id, name, s) {
   const m = printMessage(event, name, s);
+  // Pause/stop sent from V9D in the last 5 minutes: say so instead of "check filament".
+  const r = printers.get(id)?.lastRemote;
+  if (r && Date.now() - r.at < 5 * 60 * 1000 && ({ paused: 'pause', cancelled: 'cancel' })[event] === r.action) {
+    m.body = `${prettyFile(s.file) || 'Print'} · ${event === 'paused' ? 'paused' : 'stopped'} from V9D`;
+  }
   const tag = { complete: 'done', error: 'error', cancelled: 'cancel', paused: 'pause', offline: 'offline' }[event];
   notify(m.title, m.body, `${id}-${tag}`);
 }

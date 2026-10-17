@@ -132,16 +132,23 @@ const gcode = (cfg, script) => moon(cfg, `/printer/gcode/script?script=${encodeU
 async function action(p, body, log) {
   const cfg = p.cfg, a = body.action, st = p.live?.print_stats?.state;
   const num = (v) => { const n = Number(v); if (!Number.isFinite(n)) throw new Error('not a number'); return n; };
+  // Pause/resume/stop reply only once the printer's macro has finished (resume reheats first,
+  // which takes minutes), so don't wait for that: a slow reply still means the command was taken.
+  const job = async (cmd) => {
+    p.lastRemote = { action: cmd, at: Date.now() };
+    try { await moon(cfg, `/printer/print/${cmd}`, { method: 'POST', timeout: 6000 }); }
+    catch (err) { if (err.name !== 'TimeoutError') throw err; }
+  };
   switch (a) {
     case 'pause':
       if (st !== 'printing') throw new Error('Not printing');
-      await moon(cfg, '/printer/print/pause', { method: 'POST' }); return 'Pausing…';
+      await job('pause'); return 'Pausing…';
     case 'resume':
       if (st !== 'paused') throw new Error('Not paused');
-      await moon(cfg, '/printer/print/resume', { method: 'POST' }); return 'Resuming…';
+      await job('resume'); return 'Resuming — the nozzle reheats first, this can take a couple of minutes';
     case 'cancel':
       if (st !== 'printing' && st !== 'paused') throw new Error('Nothing to stop');
-      await moon(cfg, '/printer/print/cancel', { method: 'POST' }); return 'Stopping print…';
+      await job('cancel'); return 'Stopping print…';
     case 'temp': {
       const heater = { nozzle: 'extruder', bed: 'heater_bed', chamber: 'chamber_heater' }[body.heater];
       if (!heater) throw new Error('unknown heater');
