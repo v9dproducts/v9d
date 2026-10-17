@@ -42,8 +42,8 @@ Start-Sleep -Seconds 1
 
 # 3. Background task: starts at boot, restarts if it crashes, log in data\monitor.log
 Write-Host 'Registering background task...'
-$action = New-ScheduledTaskAction -Execute 'cmd.exe' `
-  -Argument "/c `"`"$node`" monitor.js >> data\monitor.log 2>&1`"" -WorkingDirectory $dir
+# run-monitor.cmd restarts the monitor whenever it stops (crash, update), so the task itself never ends.
+$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c `"$dir\run-monitor.cmd`"" -WorkingDirectory $dir
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable
@@ -81,8 +81,7 @@ foreach ($p in $printers) {
 }
 Set-Content -Path (Join-Path $g2rDir 'go2rtc.yaml') -Value $yaml -Encoding ascii
 
-$camAction = New-ScheduledTaskAction -Execute 'cmd.exe' `
-  -Argument "/c `"`"$g2rExe`" -config go2rtc.yaml >> go2rtc.log 2>&1`"" -WorkingDirectory $g2rDir
+$camAction = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c `"$dir\run-camera.cmd`"" -WorkingDirectory $g2rDir
 Unregister-ScheduledTask -TaskName $camTask -Confirm:$false -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $camTask -Action $camAction -Trigger $trigger -Settings $settings -Principal $principal | Out-Null
 Start-ScheduledTask -TaskName $camTask
