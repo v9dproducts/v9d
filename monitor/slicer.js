@@ -1,8 +1,8 @@
 // Slicing on this PC with OrcaSlicer: upload an STL/3MF from the phone, slice it with V9D's
 // choices (quality, infill, supports, which CFS slot each colour comes from), then send the
 // G-code to the printer. Profiles come from OrcaSlicer's own Creality system profiles; we merge
-// each profile's "inherits" chain ourselves, because the command line can't resolve it for
-// profiles outside its install folder.
+// the "inherits" chain of the process and filament profiles ourselves, because the command line
+// can't resolve it for profiles outside its install folder.
 
 const fs = require('fs');
 const path = require('path');
@@ -204,11 +204,14 @@ class Slicer {
     job.state = 'slicing'; job.started = Date.now(); this.save(job);
     const s = job.settings;
     try {
-      const machine = path.join(dir, 'machine.json');
+      // The printer profile is used as installed: the command line only accepts our process and
+      // filament profiles if they name it in compatible_printers.
+      const machine = profileIndex().get(p.machine);
+      if (!machine) throw new Error(`OrcaSlicer profile not found: ${p.machine}`);
+      const compat = { compatible_printers: [p.machine], compatible_printers_condition: '' };
       const proc = path.join(dir, 'process.json');
-      writeProfile(machine, p.machine, { name: 'V9D machine' });
       writeProfile(proc, quality.process, {
-        name: 'V9D process', compatible_printers: [], compatible_printers_condition: '',
+        name: 'V9D process', ...compat,
         sparse_infill_density: `${s.infill}%`,
         enable_support: s.supports ? '1' : '0', support_type: 'tree(auto)',
       });
@@ -217,7 +220,7 @@ class Slicer {
       const filaments = s.colours.map((c, i) => {
         const f = path.join(dir, `filament${i + 1}.json`);
         const j = writeProfile(f, p.materials[c.material], {
-          name: `V9D ${c.material} ${i + 1}`, compatible_printers: [], compatible_printers_condition: '',
+          name: `V9D ${c.material} ${i + 1}`, ...compat,
           filament_colour: [c.colour || '#FFFFFF'],
         });
         densities.push(Number([].concat(j.filament_density)[0]) || 1.24);
