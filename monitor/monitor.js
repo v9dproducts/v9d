@@ -216,6 +216,7 @@ function watchCreality(p) {
   const id = p.cfg.id;
   let ws, stopped = false, lastMsg = 0, raw = {}, lastPower = 0, historyWaiters = [];
   const replyWaiters = {}; // reply key -> callbacks (file list etc.)
+  let lastUnknown = null;
 
   const connect = () => {
     if (stopped) return;
@@ -234,7 +235,9 @@ function watchCreality(p) {
       if (raw.state === undefined) return;
       const err = raw.err || {};
       const errorCode = err.errcode ? `${err.errcode}${err.key ? '/' + err.key : ''}` : '';
-      const state = MAP[raw.state] || 'idle';
+      // Pausing/resuming/stopping report short in-between codes: keep the last known state.
+      if (raw.state in MAP === false && raw.state !== lastUnknown) { lastUnknown = raw.state; log(`${p.cfg.name}: in-between state ${raw.state}`); }
+      const state = MAP[raw.state] || p.status.state || 'idle';
       if (Date.now() - lastPower >= 5000) { // updates arrive many times a second
         lastPower = Date.now();
         recordPower(id, estimateCreality(p.cfg, raw, state === 'printing', holding(id, state)), state);

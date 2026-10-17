@@ -16,6 +16,7 @@ const fileName = (f) => String(f || '').split('/').pop();
 // Called by the watcher with the merged state (updates arrive several times a second).
 function recordLive(p, raw) {
   p.live = raw;
+  if (STATES[raw.state]) p.k1State = STATES[raw.state]; // in-between codes keep the last known state
   p.liveAt = Date.now();
   const hist = (p.tempHist ||= []);
   if (hist.length && Date.now() - hist[hist.length - 1][0] < 2500) return;
@@ -45,7 +46,7 @@ async function files(p) {
 
 async function view(p, extra) {
   const r = p.live || {};
-  const state = STATES[r.state] || null;
+  const state = p.k1State || null;
   const file = fileName(r.printFileName);
   const meta = (p.fileCache || []).find((f) => f.path === file)?.meta || (file ? { thumbnail: file.replace(/\.gcode$/i, '.png') } : null);
   const err = r.err?.errcode ? (r.err.value || `Error code ${r.err.errcode}`) : null;
@@ -89,7 +90,7 @@ async function thumbnail(p, rel, res) {
 
 // Validated controls. Returns a short confirmation message.
 async function action(p, body, log) {
-  const r = p.live || {}, st = STATES[r.state], a = body.action;
+  const r = p.live || {}, st = p.k1State, a = body.action;
   const set = (params) => p.k1.send(params);
   const n = (v) => { const x = Number(v); if (!Number.isFinite(x)) throw new Error('not a number'); return x; };
   switch (a) {
@@ -147,7 +148,7 @@ async function cfs() { return { connected: false, slots: [] }; }
 
 // Uploads G-code through the printer's web server, optionally starting it.
 async function upload(p, file, name, opts = {}) {
-  const st = STATES[p.live?.state];
+  const st = p.k1State;
   if (opts.start) {
     if (opts.plateClear !== true) throw new Error('Confirm the build plate is clear first');
     if (st === 'printing' || st === 'paused') throw new Error('The printer is busy — sent without starting is still possible');
