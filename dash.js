@@ -1,5 +1,5 @@
-// V9D — printer dashboard: swipe between printers; full live view and controls for
-// Klipper/Moonraker printers (K2 Plus), simple view for the others. Data from the V9D monitor
+// V9D — printer dashboard: swipe between printers; full live view and controls for the
+// K2 Plus (Moonraker) and K1 Max (Creality firmware), simple view for any others. Data from the V9D monitor
 // (/api/printer/<id>), which talks to the printers on the home network.
 
 const Dash = {
@@ -156,14 +156,14 @@ function fullView(d) {
       ${st === 'printing' ? '<button class="btn" data-act="pause">⏸ Pause</button>' : ''}
       ${st === 'paused' ? '<button class="btn primary" data-act="resume">▶ Resume</button>' : ''}
       ${active ? '<button class="btn danger-fill" data-act="stop">■ Stop</button>' : ''}
-      ${!active ? '<a class="btn primary" href="#/printers/print">Print a file…</a>' : ''}
+      ${!active ? `<a class="btn primary" href="#/printers/print" data-printfor="${esc(d.id)}">Print a file…</a>` : ''}
       <button class="btn ${d.light ? 'on' : ''}" data-act="light">${icon('bulb', 18)} ${d.light ? 'On' : 'Off'}</button>
     </div>
 
     <div class="temp-grid">
       ${tempTile('nozzle', 'Nozzle', d.temps.nozzle, hist.map((h) => [h[0], h[1]]))}
       ${tempTile('bed', 'Bed', d.temps.bed, hist.map((h) => [h[0], h[2]]))}
-      ${tempTile('chamber', 'Chamber', d.temps.chamber, hist.map((h) => [h[0], h[3]]))}
+      ${tempTile('chamber', 'Chamber', d.temps.chamber, hist.map((h) => [h[0], h[3]]), d.caps?.chamberHeater === false)}
     </div>
 
     <h3 class="day">Fans</h3>
@@ -189,17 +189,18 @@ function fullView(d) {
 
     <div class="ctrl-row">
       <button class="btn" data-act="files">Files on printer</button>
-      <a class="btn" href="${esc(Printers.url(Dash.list.find((p) => p.id === d.id)))}" target="_blank" rel="noopener">Fluidd ↗</a>
+      <a class="btn" href="${esc(Printers.url(Dash.list.find((p) => p.id === d.id)))}" target="_blank" rel="noopener">${esc(d.caps?.webLabel || 'Fluidd')} ↗</a>
     </div>`;
 }
 
-function tempTile(key, label, t, series) {
+// readOnly: a sensor with no heater behind it (the K1 Max chamber).
+function tempTile(key, label, t, series, readOnly) {
   const heating = t.target > 0;
   return `
-    <button class="temp" data-temp="${key}">
+    <button class="temp" ${readOnly ? 'disabled' : `data-temp="${key}"`}>
       <span class="temp-label">${label}</span>
       <span class="temp-now">${deg(t.temp)}</span>
-      <span class="temp-target ${heating ? 'hot' : ''}">${heating ? `→ ${deg(t.target)}` : 'off'}</span>
+      <span class="temp-target ${heating ? 'hot' : ''}">${readOnly ? 'sensor' : heating ? `→ ${deg(t.target)}` : 'off'}</span>
       ${miniSpark(series)}
     </button>`;
 }
@@ -250,6 +251,7 @@ function bindDash(body, d) {
     else if (a === 'files') filesSheet(d);
   });
   body.querySelectorAll('[data-temp]').forEach((b) => b.onclick = () => tempSheet(d, b.dataset.temp));
+  body.querySelectorAll('[data-printfor]').forEach((a) => a.onclick = () => store.set('printPrinter', a.dataset.printfor));
   body.querySelectorAll('[data-fan]').forEach((b) => b.onclick = () => fanSheet(d, b.dataset.fan));
   body.querySelectorAll('[data-speed]').forEach((b) => b.onclick = () => sendAction(d.id, { action: 'speed', percent: +b.dataset.speed }));
 }
@@ -265,12 +267,13 @@ function confirmStop(d) {
 
 const TEMP_PRESETS = {
   nozzle: { label: 'Nozzle', max: 300, presets: [['Off', 0], ['PLA', 220], ['PETG', 250], ['ABS/ASA', 260]] },
-  bed: { label: 'Bed', max: 110, presets: [['Off', 0], ['PLA', 60], ['PETG', 80], ['ABS/ASA', 100]] },
+  bed: { label: 'Bed', max: 110, maxK1: 100, presets: [['Off', 0], ['PLA', 60], ['PETG', 80], ['ABS/ASA', 100]] },
   chamber: { label: 'Chamber', max: 60, presets: [['Off', 0], ['40°', 40], ['50°', 50], ['60°', 60]] },
 };
 
 function tempSheet(d, key) {
-  const cfg = TEMP_PRESETS[key], t = d.temps[key], active = ['printing', 'paused'].includes(jobState(d));
+  const base = TEMP_PRESETS[key], t = d.temps[key], active = ['printing', 'paused'].includes(jobState(d));
+  const cfg = { ...base, max: d.type === 'creality' && base.maxK1 ? base.maxK1 : base.max };
   openSheet(`
     <h2>${cfg.label} temperature</h2>
     <p class="note">Now ${deg(t.temp)} · target ${t.target ? deg(t.target) : 'off'}</p>

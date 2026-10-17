@@ -494,7 +494,7 @@ h3.day #infillVal { color: var(--text); margin-left: 4px; }
 .toggles .check:last-child { border-bottom: 0; }
 .check small { display: block; font-weight: 400; }
 .plate-field { margin: 10px 0 2px; }
-.plate-field select, .colour-row select { width: 100%; padding: 10px; border-radius: 10px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); font: inherit; }
+.plate-field select, .colour-row select, .field select { width: 100%; padding: 10px; border-radius: 10px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); font: inherit; }
 .colour-row { display: grid; grid-template-columns: auto auto 1fr; gap: 8px 10px; align-items: center; padding: 10px 0; }
 .colour-row + .colour-row { border-top: 1px solid var(--line); }
 .colour-row:not(:has(.arrow)) { grid-template-columns: 1fr; }
@@ -521,3 +521,4 @@ h3.day #infillVal { color: var(--text); margin-left: 4px; }
 #upProgress .bar i { transition: width .2s; }
 .print-settings + #result { margin-top: 12px; }
 .slot-pick button.on .swatch { border-color: rgba(0, 0, 0, .35); }
+.temp:disabled { opacity: 1; color: var(--text); }

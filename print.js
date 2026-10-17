@@ -1,9 +1,11 @@
 // V9D — Print a file: upload an STL/3MF, choose settings, slice it on the home PC with
 // OrcaSlicer, then send it to the printer. Colours from a multi-colour 3MF are mapped onto
-// the CFS slots (A–D). V9D's choices always replace the file's own print settings.
+// the CFS slots (A–D) on the K2 Plus; the K1 Max prints one colour. V9D's choices always
+// replace the file's own print settings.
 
 const PrintPage = {
-  printer: 'k2-plus',
+  printer: null,   // id of the printer to slice for
+  printers: [],    // printers that can slice: [{ id, name, opts }]
   job: null,       // upload/slice job from the monitor
   opts: null,      // qualities and materials the monitor offers
   cfs: null,       // what's loaded in the CFS
@@ -14,11 +16,16 @@ const PrintPage = {
     clearTimeout(this.poll);
     $('#view').innerHTML = '<p class="banner">Loading…</p>';
     const id = store.get('printJob', null);
-    const [opts, cfs, job] = await Promise.all([
-      Monitor.get(`/api/slice/options?printer=${this.printer}`).catch(() => null),
-      Monitor.get(`/api/printer/${this.printer}/cfs`).catch(() => null),
+    const list = await Printers.load();
+    const [all, job] = await Promise.all([
+      Promise.all(list.map((p) => Monitor.get(`/api/slice/options?printer=${encodeURIComponent(p.id)}`).then((o) => ({ id: p.id, name: p.name, opts: o })).catch(() => null))),
       id ? Monitor.get(`/api/slice/${id}`).catch(() => null) : null,
     ]);
+    this.printers = all.filter(Boolean);
+    const want = store.get('printPrinter', null);
+    this.printer = (this.printers.find((p) => p.id === want) || this.printers[0])?.id || null;
+    const opts = this.printers.find((p) => p.id === this.printer)?.opts;
+    const cfs = opts?.cfs ? await Monitor.get(`/api/printer/${this.printer}/cfs`).catch(() => null) : null;
     if (currentRoute() !== 'printers/print') return;
     if (!opts) {
       $('#view').innerHTML = '<p class="banner warn">Can’t reach the V9D monitor, so files can’t be sliced right now. Check Tailscale is on.</p>';
@@ -36,10 +43,24 @@ const PrintPage = {
     if (job && ['queued', 'slicing'].includes(job.state)) this.watch();
   },
 
+  printerName() { return this.printers.find((p) => p.id === this.printer)?.name || 'printer'; },
+  printerSeg() {
+    if (this.printers.length < 2) return '';
+    return `<h3 class="day">Print on</h3><div class="seg" style="grid-template-columns:repeat(${this.printers.length},1fr)">${this.printers.map((p) =>
+      `<button data-printer="${esc(p.id)}" class="${p.id === this.printer ? 'on' : ''}">${esc(p.name)}</button>`).join('')}</div>`;
+  },
+  bindPrinterSeg() {
+    document.querySelectorAll('[data-printer]').forEach((b) => b.onclick = () => {
+      if (b.dataset.printer === this.printer) return;
+      store.set('printPrinter', b.dataset.printer);
+      this.render();
+    });
+  },
+
   draw() {
     const v = $('#view');
     if (!this.job) {
-      v.innerHTML = `
+      v.innerHTML = this.printerSeg() + `
         <label class="pick">
           <input type="file" id="pickFile" hidden>
           <span class="pick-icon">${icon('upload', 34)}</span>
@@ -49,19 +70,21 @@ const PrintPage = {
         <div id="upProgress"></div>
         <p class="hint">The home PC slices it with OrcaSlicer using the settings you choose here — a 3MF’s own print settings are replaced. Multi-colour 3MF files keep their colours; you pick which CFS slot each one prints from.</p>`;
       $('#pickFile').onchange = (e) => e.target.files[0] && this.upload(e.target.files[0]);
+      this.bindPrinterSeg();
       return;
     }
     const j = this.job;
     const busy = ['queued', 'slicing'].includes(j.state);
-    v.innerHTML = `
+    v.innerHTML = this.printerSeg() + `
       <div class="panel print-file">
         <span class="hub-icon">${icon('printer', 24)}</span>
-        <span class="w-col"><b>${esc(j.name)}</b><span class="muted">${j.ext.slice(1).toUpperCase()} · ${j.size < 1048576 ? `${Math.max(1, Math.round(j.size / 1024))} KB` : `${(j.size / 1048576).toFixed(1)} MB`}${j.plates > 1 ? ` · ${j.plates} plates` : ''} · for the K2 Plus</span></span>
+        <span class="w-col"><b>${esc(j.name)}</b><span class="muted">${j.ext.slice(1).toUpperCase()} · ${j.size < 1048576 ? `${Math.max(1, Math.round(j.size / 1024))} KB` : `${(j.size / 1048576).toFixed(1)} MB`}${j.plates > 1 ? ` · ${j.plates} plates` : ''} </span></span>
         <button class="chip" id="newFile">Change</button>
       </div>
       ${this.settingsHtml(j)}
       <div id="result">${this.resultHtml(j)}</div>`;
     $('#newFile').onclick = () => { store.set('printJob', null); this.job = null; this.draw(); };
+    this.bindPrinterSeg();
     this.bindSettings();
     this.bindResult();
     if (busy) v.querySelectorAll('.print-settings button, .print-settings input, .print-settings select').forEach((el) => { el.disabled = true; });
@@ -71,7 +94,7 @@ const PrintPage = {
   defaults() {
     const j = this.job;
     const saved = store.get('printSettings', {});
-    const s = j.settings || {};
+    const s = j.settings?.printer === this.printer ? j.settings : {}; // settings were for this printer
     return {
       quality: s.quality || saved.quality || 'standard',
       infill: s.infill ?? saved.infill ?? 15,
@@ -86,7 +109,7 @@ const PrintPage = {
   // Closest loaded slot by colour, so a white model lands on the white filament.
   guessSlot(c) {
     const slots = this.loaded();
-    if (!slots.length) return { slot: 'A', material: 'PLA', colour: c.colour };
+    if (!slots.length) return { slot: 'A', material: this.materialFor(c.type), colour: c.colour };
     const rgb = (h) => [1, 3, 5].map((k) => parseInt(String(h || '#FFFFFF').slice(k, k + 2), 16) || 0);
     const dist = (a, b) => rgb(a).reduce((t, x, k) => t + (x - rgb(b)[k]) ** 2, 0);
     const best = slots.slice().sort((a, b) => dist(c.colour, a.colour) - dist(c.colour, b.colour))[0];
@@ -122,10 +145,13 @@ const PrintPage = {
             <select id="plate">${Array.from({ length: j.plates }, (_, k) => `<option value="${k + 1}" ${s.plate === k + 1 ? 'selected' : ''}>Plate ${k + 1}</option>`).join('')}</select></label>` : ''}
         </div>
 
-        <h3 class="day">${used.length > 1 ? `Colours → CFS slots` : 'Filament'}</h3>
-        ${this.cfs ? '' : '<p class="banner">Couldn’t read the CFS — choose slots yourself.</p>'}
+        <h3 class="day">${used.length > 1 && this.opts.cfs ? `Colours → CFS slots` : 'Filament'}</h3>
+        ${!this.opts.cfs && used.length > 1 ? `<p class="help-warn">This file uses ${used.length} colours. The ${esc(this.printerName())} prints one colour, so choose a printer with a CFS.</p>` : ''}
+        ${this.opts.cfs && !this.cfs ? '<p class="banner">Couldn’t read the CFS — choose slots yourself.</p>' : ''}
         <div class="panel">
-          ${used.map((c) => {
+          ${!this.opts.cfs ? `<label class="field"><span>Material on the spool</span>
+            <select class="mat solo">${this.opts.materials.map((m) => `<option ${s.colours[0].material === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>` : ''}
+          ${!this.opts.cfs ? '' : used.map((c) => {
             const pick = s.colours[c.i];
             const info = slotInfo(pick.slot);
             return `
@@ -172,6 +198,8 @@ const PrintPage = {
       });
       row.querySelector('.mat').onchange = (e) => { s.colours[i].material = e.target.value; stale(); };
     });
+    const solo = v.querySelector('.mat.solo');
+    if (solo) solo.onchange = (e) => { s.colours.forEach((c) => { c.material = e.target.value; }); stale(); };
     $('#doSlice').onclick = () => this.slice();
   },
 
@@ -210,10 +238,11 @@ const PrintPage = {
       return `<div class="panel slicing"><span class="spinner"></span><span class="w-col"><b>Slicing on the home PC…</b><span class="muted">${secs}s — big or multi-colour models can take a few minutes</span></span></div>`;
     }
     if (j.state === 'failed') return `<p class="banner warn">Slicing failed: ${esc(j.error || 'unknown error')}. Try other settings, or check the file opens in OrcaSlicer.</p>`;
-    if (j.state !== 'sliced' || !j.result) return '';
+    if (j.state !== 'sliced' || !j.result || j.settings?.printer !== this.printer) return '';
     const r = j.result, p = Prices.get();
     const material = Prices.material(r.grams, p);
-    const energy = Prices.energy((r.seconds || 0) / 3600 * 215 + 30, p); // K2 Plus typical draw + heat-up
+    const watts = this.printer === 'k1-max' ? 235 : 215; // typical draw while printing, as in Usage & Costs
+    const energy = Prices.energy((r.seconds || 0) / 3600 * watts + 30, p); // + heat-up
     return `
       <h3 class="day">Ready to print</h3>
       <div class="panel result">
@@ -222,7 +251,7 @@ const PrintPage = {
           <div class="result-cost"><span class="w-big">${fmt.money(material + energy)}</span><span class="muted">${fmt.money(material)} filament · ${fmt.money(energy)} power</span></div>
         </div>
         <div class="detail-grid">
-          ${r.perColour.map((c) => `<span><span class="swatch sm" style="background:${esc(c.colour)}"></span> Slot ${c.slot} · ${esc(c.material)}</span><b>${c.grams} g</b>`).join('')}
+          ${r.perColour.map((c) => `<span><span class="swatch sm" style="background:${esc(c.colour)}"></span> ${c.slot ? `Slot ${c.slot} · ` : ''}${esc(c.material)}</span><b>${c.grams} g</b>`).join('')}
           ${r.layers ? `<span>Layers</span><b>${r.layers}</b>` : ''}
         </div>
       </div>
@@ -240,7 +269,7 @@ const PrintPage = {
       const empty = r.perColour.filter((c) => this.cfs?.slots?.find((x) => x.slot === c.slot)?.empty);
       openSheet(`
         <h2>Print ${esc(this.job.name)}?</h2>
-        <p class="note">About ${fmt.hours(r.seconds || 0)} · ${r.grams} g · slots ${[...new Set(r.perColour.map((c) => c.slot))].join(', ')}</p>
+        <p class="note">On the ${esc(this.printerName())} · about ${fmt.hours(r.seconds || 0)} · ${r.grams} g${this.opts.cfs ? ` · slots ${[...new Set(r.perColour.map((c) => c.slot))].join(', ')}` : ''}</p>
         ${empty.length ? `<p class="help-warn">Slot ${empty.map((c) => c.slot).join(', ')} looks empty. Load it first or the print will stop for filament.</p>` : ''}
         <label class="check"><input type="checkbox" id="plateClear"><span>The build plate is clear and the right filament is loaded</span></label>
         <p class="note">Starting a print onto a part that’s still on the plate can crash the nozzle into it.</p>

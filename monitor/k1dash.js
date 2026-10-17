@@ -72,7 +72,7 @@ async function view(p, extra) {
     fans: { part: (r.modelFanPct ?? 0) / 100, aux: (r.auxiliaryFanPct ?? 0) / 100, chamber: (r.caseFanPct ?? 0) / 100 },
     light: r.lightSw ?? null,
     motion: {
-      speed: num(r.realTimeSpeed), speedFactor: (r.curFeedratePct ?? 100) / 100, flowFactor: (r.curFlowratePct ?? 100) / 100,
+      speed: state === 'printing' ? num(r.realTimeSpeed) : 0, speedFactor: (r.curFeedratePct ?? 100) / 100, flowFactor: (r.curFlowratePct ?? 100) / 100,
       z: z ? Number(z[1]) : null, homed: '',
     },
   };
