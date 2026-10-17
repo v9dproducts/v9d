@@ -7,7 +7,7 @@ const path = require('path');
 const DASH_OBJECTS = [
   'print_stats', 'virtual_sdcard', 'display_status', 'webhooks', 'toolhead', 'gcode_move', 'motion_report',
   'extruder', 'heater_bed', 'heater_generic chamber_heater', 'temperature_sensor chamber_temp',
-  'output_pin fan0', 'output_pin fan1', 'output_pin fan2', 'output_pin led',
+  'output_pin fan0', 'output_pin fan1', 'output_pin fan2', 'output_pin LED',
 ];
 
 const HISTORY_MS = 15 * 60 * 1000;
@@ -94,7 +94,7 @@ async function view(p, extra) {
     },
     tempHistory: p.tempHist || [],
     fans: { part: pin('fan0'), aux: pin('fan2'), chamber: pin('fan1') },
-    light: pin('led'),
+    light: pin('LED'),
     motion: {
       speed: st.motion_report?.live_velocity ?? null,
       speedFactor: st.gcode_move?.speed_factor ?? null,
@@ -151,7 +151,7 @@ async function action(p, body, log) {
       return t ? `Heating to ${t} °C` : 'Heater off';
     }
     case 'light':
-      await gcode(cfg, `SET_PIN PIN=led VALUE=${body.on ? 1 : 0}`); return body.on ? 'Light on' : 'Light off';
+      await gcode(cfg, `SET_PIN PIN=LED VALUE=${body.on ? 1 : 0}`); return body.on ? 'Light on' : 'Light off';
     case 'fan': {
       if (!(body.fan in FANS)) throw new Error('unknown fan');
       const pct = Math.max(0, Math.min(100, Math.round(num(body.percent))));
