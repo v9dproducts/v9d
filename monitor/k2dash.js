@@ -2,6 +2,7 @@
 // temperature history, files stored on the printer, and validated controls.
 // Uses Moonraker's documented HTTP API: https://moonraker.readthedocs.io/en/latest/web_api/
 
+const fs = require('fs');
 const path = require('path');
 
 const DASH_OBJECTS = [
@@ -36,6 +37,9 @@ function recordLive(p, st) {
 const round1 = (x) => (typeof x === 'number' ? Math.round(x * 10) / 10 : null);
 
 // File metadata (slicer estimate, filament, thumbnails), cached per file+modified time.
+// Moonraker on the K2 doesn't recognise Creality Print files ("slicer: Unknown"), so it
+// extracts no thumbnail or estimate; we then read them from the file's own header/footer.
+const THUMBS = path.join(__dirname, 'data', 'thumbs');
 const metaCache = new Map();
 async function metadata(cfg, filename) {
   if (!filename) return null;
@@ -56,9 +60,45 @@ async function metadata(cfg, filename) {
       slicer: m.slicer || null,
       thumbnail: thumbs[0] ? path.posix.join(dir === '.' ? '' : dir, thumbs[0].relative_path) : null,
     };
+    if (!meta.thumbnail || !meta.estimatedTime) {
+      const g = await fromGcode(cfg, filename, m).catch(() => ({}));
+      meta = { ...meta, ...g, thumbnail: meta.thumbnail || g.thumbnail || null, estimatedTime: meta.estimatedTime || g.estimatedTime || null };
+    }
   } catch {}
   metaCache.set(key, { at: Date.now(), meta });
   return meta;
+}
+
+// Reads the embedded thumbnail (start of file) and the slicer summary (end of file).
+async function fromGcode(cfg, filename, m) {
+  const url = `${base(cfg)}/server/files/gcodes/${filename.split('/').map(encodeURIComponent).join('/')}`;
+  const part = (range) => fetch(url, { headers: { Range: `bytes=${range}` }, signal: AbortSignal.timeout(10000) }).then((r) => (r.ok ? r.text() : ''));
+  const out = {};
+  const id = require('crypto').createHash('sha1').update(`${cfg.id}:${filename}:${m.modified}`).digest('hex').slice(0, 16);
+  const png = path.join(THUMBS, `${id}.png`);
+  if (fs.existsSync(png)) out.thumbnail = `v9d:${id}`;
+  else {
+    const head = await part(`0-${Math.min((m.gcode_start_byte || 131072) + 1024, 262143)}`);
+    let best = null;
+    for (const t of head.matchAll(/; thumbnail begin (\d+)x(\d+) \d+\r?\n([\s\S]*?); thumbnail end/g)) {
+      const w = Number(t[1]);
+      if (w <= 400 && (!best || w > best.w)) best = { w, data: t[3].replace(/^;\s?/gm, '').replace(/\s+/g, '') };
+    }
+    if (best?.data) {
+      fs.mkdirSync(THUMBS, { recursive: true });
+      fs.writeFileSync(png, Buffer.from(best.data, 'base64'));
+      out.thumbnail = `v9d:${id}`;
+    }
+  }
+  const tail = await part('-40000');
+  const get = (re) => tail.match(re)?.[1];
+  const t = get(/^; estimated printing time \(normal mode\) = (.+)$/m);
+  if (t) out.estimatedTime = [...t.matchAll(/(\d+)\s*([dhms])/g)].reduce((a, [, n, u]) => a + n * { d: 86400, h: 3600, m: 60, s: 1 }[u], 0) || null;
+  const g = get(/^; total filament used \[g\] = ([\d.]+)/m) || get(/^; total filament weight \[g\] = ([\d.]+)/m);
+  if (g) out.filamentGrams = Number(g);
+  const lh = get(/^; layer_height = ([\d.]+)/m);
+  if (lh) out.layerHeight = Number(lh);
+  return out;
 }
 
 async function view(p, extra) {
@@ -119,6 +159,13 @@ async function files(p) {
 
 // Streams a file from the printer (used for thumbnails). Only image files under gcodes/.
 async function thumbnail(p, rel, res) {
+  const own = rel.match(/^v9d:([a-f0-9]{16})$/); // extracted by fromGcode
+  if (own) {
+    const f = path.join(THUMBS, own[1] + '.png');
+    if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400' });
+    return res.end(fs.readFileSync(f));
+  }
   if (!/\.(png|jpe?g)$/i.test(rel) || rel.includes('..')) { res.writeHead(400); return res.end(); }
   const r = await fetch(`${base(p.cfg)}/server/files/gcodes/${rel.split('/').map(encodeURIComponent).join('/')}`, { signal: AbortSignal.timeout(10000) });
   if (!r.ok) { res.writeHead(404); return res.end(); }
