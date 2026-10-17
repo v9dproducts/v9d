@@ -125,11 +125,33 @@ function inspect3mf(file) {
   } catch {}
   const ms = files['Metadata/model_settings.config']?.toString('utf8') || '';
   const plates = Math.max(1, (ms.match(/<plate>/g) || []).length);
-  const painted = Object.entries(files).some(([n, b]) => n.endsWith('.model') && b.includes('paint_color'));
   const used = new Set([...ms.matchAll(/key="extruder" value="(\d+)"/g)].map((m) => Number(m[1]) - 1));
+  for (const [n, b] of Object.entries(files)) if (n.endsWith('.model')) for (const s of paintedStates(b)) used.add(s - 1);
   if (!colours.length) colours = [{ colour: '#FFFFFF', type: '' }];
-  colours = colours.map((c, i) => ({ ...c, used: painted || used.has(i) || (i === 0 && used.size === 0) }));
+  colours = colours.map((c, i) => ({ ...c, used: used.has(i) || (i === 0 && ![...used].some((u) => u >= 0)) }));
   return { colours, plates };
+}
+
+// Colours used by painting (paint_color, the slicers' triangle-selector format: hex digits read
+// from the end; a digit whose low two bits are 0 is a leaf holding a colour number, 3 meaning
+// "3 + the next digit"). 0 means the part's own colour.
+function paintedStates(buf) {
+  const states = new Set();
+  const text = buf.toString('latin1');
+  const seen = new Set();
+  for (const m of text.matchAll(/paint_color="([0-9A-Fa-f]+)"/g)) {
+    const str = m[1];
+    if (seen.has(str)) continue;
+    seen.add(str);
+    for (let i = str.length - 1; i >= 0; i--) {
+      const n = parseInt(str[i], 16);
+      if ((n & 3) !== 0) continue; // split node, its children follow
+      let st = n >> 2;
+      if (st === 3 && i > 0) { i--; st = 3 + parseInt(str[i], 16); }
+      if (st > 0) states.add(st);
+    }
+  }
+  return states;
 }
 
 // ---------- Jobs ----------
