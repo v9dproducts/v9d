@@ -11,11 +11,14 @@ const SKIP = /prime tower|wipe tower|skirt|brim|custom|purge|sparse infill|inter
 // Extrusion segments from G-code lines, flat: x1,y1,z1,x2,y2,z2,tool,top per segment.
 function segments(lines) {
   const segs = [];
-  let x = 0, y = 0, z = 0, e = 0, relE = true, tool = 0, started = false, skip = false, top = false;
+  let x = 0, y = 0, z = 0, e = 0, relE = true, tool = 0, started = false, skip = false, top = false, tower = false;
   for (const raw of lines) {
     const line = raw.trimStart();
     if (line[0] === ';') {
       if (/^;\s*(LAYER_CHANGE|Z:|LAYER:)/.test(line)) started = true;
+      // Colour changes purge onto the wipe tower; it isn't part of the model.
+      if (/^;\s*(WIPE_TOWER_START|CP TOOLCHANGE START)/.test(line)) tower = true;
+      if (/^;\s*(WIPE_TOWER_END|CP TOOLCHANGE END)/.test(line)) tower = false;
       const f = line.match(/^;\s*(?:FEATURE|TYPE):\s*(.*)/);
       if (f) { skip = SKIP.test(f[1]); top = /top|ironing/i.test(f[1]); }
       continue;
@@ -33,7 +36,7 @@ function segments(lines) {
     const nx = v('X') ?? x, ny = v('Y') ?? y, nz = v('Z') ?? z, ve = v('E');
     let de = 0;
     if (ve !== null) { de = relE ? ve : ve - e; if (!relE) e = ve; }
-    if (started && !skip && de > 0) {
+    if (started && !skip && !tower && de > 0) {
       if (g >= 2) { // arc: walk it in short straight pieces
         const i = v('I') ?? 0, j = v('J') ?? 0, cx = x + i, cy = y + j, r = Math.hypot(i, j);
         let a0 = Math.atan2(y - cy, x - cx), a1 = Math.atan2(ny - cy, nx - cx);
