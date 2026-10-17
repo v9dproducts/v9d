@@ -36,7 +36,8 @@ function segments(lines) {
     const nx = v('X') ?? x, ny = v('Y') ?? y, nz = v('Z') ?? z, ve = v('E');
     let de = 0;
     if (ve !== null) { de = relE ? ve : ve - e; if (!relE) e = ve; }
-    if (started && !skip && !tower && de > 0) {
+    // Extruding without moving (un-retract, priming) isn't a line of the model.
+    if (started && !skip && !tower && de > 0 && (Math.abs(nx - x) > 0.01 || Math.abs(ny - y) > 0.01)) {
       if (g >= 2) { // arc: walk it in short straight pieces
         const i = v('I') ?? 0, j = v('J') ?? 0, cx = x + i, cy = y + j, r = Math.hypot(i, j);
         let a0 = Math.atan2(y - cy, x - cx), a1 = Math.atan2(ny - cy, nx - cx);
