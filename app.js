@@ -476,13 +476,21 @@ const ROUTES = {
   power: () => PowerPage.render(),
   radar: () => RadarPage.render(),
   maintenance: () => MaintPage.render(),
+  products: () => ProductsPage.render(),
   settings: () => SettingsPage.render(),
 };
 const TAB_ROOT = { home: '', printers: 'printers', business: 'business', settings: 'settings' };
 const currentRoute = () => location.hash.replace(/^#\/?/, '');
+// Pages with an id in the address, e.g. #/products/<id>.
+const ROUTE_PATTERNS = [[/^products\/(\w+)$/, (m) => ProductsPage.detail(m[1])]];
+function routeFor(r) {
+  if (ROUTES[r]) return ROUTES[r];
+  for (const [re, fn] of ROUTE_PATTERNS) { const m = r.match(re); if (m) return () => fn(m); }
+  return null;
+}
 function tabFor(r) {
   if (r.startsWith('printers')) return 'printers';
-  if (['business', 'usage', 'power', 'radar', 'maintenance'].includes(r)) return 'business';
+  if (['business', 'usage', 'power', 'radar', 'maintenance', 'products'].includes(r.split('/')[0])) return 'business';
   if (r === 'settings') return 'settings';
   return 'home';
 }
@@ -505,7 +513,7 @@ function moveTabPill(animate) {
 
 function route() {
   closeSheet();
-  const r = ROUTES[currentRoute()] ? currentRoute() : '';
+  const r = routeFor(currentRoute()) ? currentRoute() : '';
   const from = lastRoute;
   if (from !== null) scrollMemory[from] = window.scrollY;
   const dir = from === null ? 'none' : tabFor(from) !== tabFor(r) ? 'tab' : depth(r) > depth(from) ? 'forward' : depth(r) < depth(from) ? 'back' : 'tab';
@@ -520,7 +528,7 @@ function route() {
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     moveTabPill(dir !== 'none');
-    const done = Promise.resolve(ROUTES[r]()).catch(() => {});
+    const done = Promise.resolve(routeFor(r)()).catch(() => {});
     window.scrollTo(0, 0);
     // Going back: return to where you were once the page has filled in (it may draw a moment later).
     const target = dir === 'back' ? scrollMemory[r] || 0 : 0, at = Date.now();
@@ -533,10 +541,16 @@ function route() {
 
   document.documentElement.dataset.nav = dir;
   if (dir === 'none' || reduceMotion()) return show();
-  if (document.startViewTransition) {
-    // Tapping quickly skips the previous transition; that's expected, not an error.
-    const t = document.startViewTransition(show);
-    for (const k of ['ready', 'finished', 'updateCallbackDone']) t[k].catch(() => {});
+  if (document.startViewTransition && document.visibilityState === 'visible') {
+    // Tapping quickly skips the previous transition, and a transition can be refused (e.g. the
+    // app is in the background): the page must still change, so show it ourselves if needed.
+    let ran = false;
+    const once = () => { if (ran) return undefined; ran = true; return show(); };
+    const t = document.startViewTransition(once);
+    t.updateCallbackDone.catch(() => once());
+    t.ready.catch(() => {});
+    t.finished.catch(() => {});
+    setTimeout(() => { if (lastRoute === r) once(); }, 400);
     return;
   }
   show();

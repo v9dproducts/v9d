@@ -260,10 +260,20 @@ const PrintPage = {
         <button class="btn" id="sendOnly">Send to printer</button>
         <button class="btn primary" id="printNow">Print now</button>
       </div>
+      ${j.productId ? `<div class="ctrl-row"><button class="btn" id="updateProduct">${icon('tag', 18)} Update the product</button><button class="btn" id="saveProduct">Save as new product</button></div>`
+        : `<button class="btn block" id="saveProduct">${icon('tag', 18)} Save as product</button>`}
       <p class="hint">“Send to printer” puts it in the printer’s files so you can start it later from the printer or V9D.</p>`;
   },
 
   bindResult() {
+    if ($('#saveProduct')) $('#saveProduct').onclick = () => saveProductSheet({ ...this.job, productId: null });
+    if ($('#updateProduct')) $('#updateProduct').onclick = async () => {
+      try {
+        await Monitor.post(`/api/products/${this.job.productId}/from-job`, { job: this.job.id });
+        toast('Product updated');
+        location.hash = `#/products/${this.job.productId}`;
+      } catch (e) { toast(`Couldn’t update: ${e.message}`, true); }
+    };
     if ($('#sendOnly')) $('#sendOnly').onclick = () => this.send(false);
     if ($('#printNow')) $('#printNow').onclick = () => {
       const r = this.job.result;

@@ -188,6 +188,19 @@ class Slicer {
   get(id) { return this.jobs.get(id) || null; }
   public(job) { return { ...job, result: job.result && { ...job.result, gcode: undefined } }; }
 
+  modelPath(job) { return path.join(this.dir, job.id, 'model' + job.ext); }
+
+  // A new job from a saved model (a product), with its settings filled in.
+  fromFile(file, info, productId) {
+    const id = crypto.randomBytes(6).toString('hex');
+    fs.mkdirSync(path.join(this.dir, id), { recursive: true });
+    fs.copyFileSync(file, path.join(this.dir, id, 'model' + info.ext));
+    const job = { id, name: info.name, ext: info.ext, size: fs.statSync(file).size, created: Date.now(), state: 'uploaded',
+      colours: info.colours, plates: info.plates, settings: info.settings, productId };
+    this.save(job);
+    return job;
+  }
+
   // Streams an upload to disk. name = original file name (.stl or .3mf).
   upload(req, name) {
     return new Promise((resolve, reject) => {

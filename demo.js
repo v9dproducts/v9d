@@ -46,6 +46,9 @@ const Demo = {
       if (pm[2] === '/files') return { files: this.files(pm[1]) };
       if (pm[2] === '/cfs') return pm[1] === 'k2-plus' ? this.cfs() : { connected: false, slots: [] };
     }
+    if (p === '/api/products') return { products: this.products.slice().sort((a, b) => (b.lastPrinted || b.updated) - (a.lastPrinted || a.updated)) };
+    const prm = p.match(/^\/api\/products\/(\w+)$/);
+    if (prm) { const x = this.products.find((q) => q.id === prm[1]); if (!x) throw new Error('Monitor replied 404'); return { ...x }; }
     const sm = p.match(/^\/api\/slice\/(demo\d+)$/);
     if (sm) { const j = this.jobs[sm[1]]; if (!j) throw new Error('Monitor replied 404'); return { ...j }; }
     switch (p) {
@@ -75,6 +78,32 @@ const Demo = {
       return { ok: true, message: body.start ? 'Sent — the print is starting' : 'Sent to the printer' };
     }
     if (path === '/api/maintenance/perform') return this.maintenance();
+    if (path === '/api/products') {
+      const j = this.jobs[body.fromJob];
+      if (!j?.result) throw new Error('Monitor replied 400');
+      const x = { id: `demonew${Date.now().toString(36)}`, created: Date.now(), name: body.name || j.name, units: Math.max(1, +body.units || 1), packaging: 0, prices: body.prices || {}, listings: [], notes: '', printed: 0, lastPrinted: null };
+      this.fromJob(x, j);
+      this.products.push(x);
+      return { ...x };
+    }
+    const prm = path.match(/^\/api\/products\/(\w+)\/?(delete|settings|from-job|print)?$/);
+    if (prm) {
+      const x = this.products.find((q) => q.id === prm[1]);
+      if (!x) throw new Error('Monitor replied 404');
+      switch (prm[2]) {
+        case undefined: Object.assign(x, body, body.prices ? { prices: { ...x.prices, ...body.prices } } : {}, { updated: Date.now() }); return { ...x };
+        case 'delete': this.products = this.products.filter((q) => q !== x); return { ok: true };
+        case 'settings': {
+          const id = `demo${this.nextJob++}`;
+          this.jobs[id] = { id, name: x.name, ext: x.ext, size: 900000, created: Date.now(), state: 'uploaded', colours: x.colours, plates: 1, settings: x.settings, productId: x.id };
+          return { ...this.jobs[id] };
+        }
+        case 'from-job': this.fromJob(x, this.jobs[body.job]); return { ...x };
+        case 'print':
+          if (body.start) { this.startPrint(x.result.printer, `${x.name}_V9D.gcode`, x.result.seconds, x.demoImg); x.printed++; x.lastPrinted = Date.now(); }
+          return { ok: true, message: body.start ? 'Sent — the print is starting' : 'Sent to the printer', product: { ...x } };
+      }
+    }
     throw new Error('Monitor replied 404');
   },
 
@@ -326,6 +355,29 @@ const Demo = {
     }, 2600);
     return { ...j };
   },
+
+  fromJob(x, j) {
+    Object.assign(x, { ext: j.ext, colours: j.colours, plates: 1, settings: j.settings, result: { ...j.result, printer: j.settings.printer },
+      demoImg: j.ext === '.3mf' ? 'blocks.png' : 'block.png', updated: Date.now() });
+  },
+
+  products: (() => {
+    const day = 864e5, now = Date.now();
+    const mk = (id, name, img, printer, seconds, grams, units, prices, cols, printed, extra = {}) => ({
+      id, name, demoImg: img, units, packaging: 0.35, prices, listings: prices.etsy ? [{ channel: 'etsy', url: 'https://www.etsy.com/uk/listing/1234567890' }] : [],
+      notes: '', printed, lastPrinted: printed ? now - (printed % 5 + 1) * day : null, created: now - 40 * day, updated: now - 3 * day,
+      ext: cols.length > 1 ? '.3mf' : '.stl', colours: cols.map((c) => ({ colour: c[2], type: 'PLA', used: true })), plates: 1,
+      settings: { printer, quality: 'standard', infill: 15, supports: false, orient: true, plate: 1, colours: cols.map((c) => ({ slot: c[0], material: c[1], colour: c[2] })) },
+      result: { printer, seconds, grams, layers: 140, preview: true, perColour: cols.map((c, i) => ({ slot: printer === 'k2-plus' ? c[0] : null, material: c[1], colour: c[2], grams: Math.round(grams / cols.length * (i ? 0.7 : 1.3) * 10) / 10 })) },
+      ...extra,
+    });
+    return [
+      mk('demop1', 'Mini speed boat', 'benchy.png', 'k2-plus', 1915, 10.9, 1, { etsy: 6.99, local: 5 }, [['A', 'PLA', '#FFFFFF']], 9),
+      mk('demop2', 'Two colour coasters (set of 2)', 'blocks.png', 'k2-plus', 3881, 8.2, 2, { etsy: 12.99, ebay: 11.5 }, [['C', 'PLA', '#E5484D'], ['B', 'PLA', '#1C1C1C']], 4),
+      mk('demop3', 'Skadis pen holder', 'stand.png', 'k1-max', 3681, 19.3, 2, { etsy: 9.5, ebay: 8.5 }, [['A', 'PLA', '#F2F2F2']], 21),
+      mk('demop4', 'Cable tidy block', 'block.png', 'k1-max', 712, 7.9, 6, {}, [['A', 'PLA High Speed', '#F2F2F2']], 0),
+    ];
+  })(),
 
   preview(id) { return this.img(this.jobs[id]?.ext === '.3mf' ? 'blocks.png' : 'block.png'); },
 };

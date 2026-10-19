@@ -14,6 +14,7 @@ const dash = require('./k2dash');
 const k1 = require('./k1dash');
 const DASH = { moonraker: dash, creality: k1 }; // full dashboard module per printer type
 const { Slicer } = require('./slicer');
+const { Products } = require('./products');
 
 const DATA = path.join(__dirname, 'data');
 fs.mkdirSync(DATA, { recursive: true });
@@ -74,6 +75,7 @@ usage.onSessionEnd = (id) => setTimeout(() => syncHistory(id), 20000);
 const maintenance = new Maintenance(DATA, usage, (...a) => notify(...a), log);
 const trends = new Trends(DATA, config, log);
 const slicer = new Slicer(DATA, log);
+const products = new Products(DATA, slicer, log);
 
 // Motors stay energised for a while after a print, then the firmware switches them off.
 function holding(id, state) {
@@ -326,6 +328,9 @@ function send(res, code, body, origin) {
   res.end(body === undefined ? '' : JSON.stringify(body));
 }
 
+// Network failures reaching a printer read as "fetch failed"; say what it means.
+const friendly = (err) => (/fetch failed|ECONNREFUSED|EHOSTUNREACH|timeout|aborted/i.test(err.message) ? 'Can’t reach the printer — is it switched on and connected?' : err.message);
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -340,7 +345,7 @@ function readBody(req) {
 // (always current), falling back to the copy next to this folder.
 const APP_URL = config.printersUrl.replace(/printers\.json$/, '');
 // Explicit list — add new app files here. Nothing in monitor/ (keys, data) is ever served.
-const APP_FILES = new Set(['index.html', 'app.js', 'costs.js', 'maint.js', 'maint-help.js', 'radar.js', 'dash.js', 'print.js', 'home.js', 'demo.js', 'demo-camera.html', 'icons.js',
+const APP_FILES = new Set(['index.html', 'app.js', 'costs.js', 'maint.js', 'maint-help.js', 'radar.js', 'dash.js', 'print.js', 'products.js', 'fees.js', 'home.js', 'demo.js', 'demo-camera.html', 'icons.js',
   'styles.css', 'sw.js', 'manifest.webmanifest', 'printers.json', 'trends-snapshot.json']);
 const appFileFor = (pathname) => {
   const f = pathname === '/' ? 'index.html' : pathname.slice(1);
@@ -445,6 +450,52 @@ http.createServer(async (req, res) => {
       }
       return send(res, 404, { error: 'not found' }, origin);
     }
+    // ---------- Products ----------
+    if (req.method === 'GET' && url.pathname === '/api/products') return send(res, 200, { products: products.all() }, origin);
+    if (req.method === 'POST' && url.pathname === '/api/products') {
+      try {
+        const body = await readBody(req);
+        const job = slicer.get(body.fromJob);
+        if (!job) throw new Error('This slice has expired — slice the file again');
+        const p = products.create(job, body);
+        if (!job.productId) { job.productId = p.id; slicer.save(job); }
+        return send(res, 200, p, origin);
+      } catch (err) { return send(res, 400, { error: err.message }, origin); }
+    }
+    const prm = url.pathname.match(/^\/api\/products\/([a-f0-9]{12})(\/[a-z-]+)?$/);
+    if (prm) {
+      const p = products.get(prm[1]);
+      if (!p) return send(res, 404, { error: 'This product no longer exists' }, origin);
+      const sub = prm[2] || '';
+      if (req.method === 'GET' && sub === '') return send(res, 200, p, origin);
+      if (req.method === 'GET' && sub === '/preview') {
+        const f = products.preview(p);
+        if (!f) return send(res, 404, { error: 'no preview' }, origin);
+        res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=60', ...(origin && config.allowedOrigins.includes(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) });
+        return res.end(fs.readFileSync(f));
+      }
+      try {
+        if (req.method === 'POST' && sub === '') return send(res, 200, products.edit(p, await readBody(req)), origin);
+        if (req.method === 'POST' && sub === '/delete') { products.remove(p); return send(res, 200, { ok: true }, origin); }
+        if (req.method === 'POST' && sub === '/settings') return send(res, 200, slicer.public(products.toJob(p)), origin);
+        if (req.method === 'POST' && sub === '/from-job') {
+          const job = slicer.get((await readBody(req)).job);
+          if (!job) throw new Error('This slice has expired — slice the file again');
+          return send(res, 200, products.updateFromJob(p, job), origin);
+        }
+        if (req.method === 'POST' && sub === '/print') {
+          const body = await readBody(req);
+          const pr = printers.get(p.result?.printer);
+          if (!pr || !DASH[pr.cfg.type]) throw new Error('That printer isn’t available');
+          const message = await DASH[pr.cfg.type].upload(pr, products.gcodeFile(p), products.fileName(p), { start: body.start === true, plateClear: body.plateClear });
+          if (body.start) products.printed(p);
+          log(`${pr.cfg.name}: product ${p.name} sent from V9D${body.start ? ' and started' : ''}`);
+          return send(res, 200, { ok: true, message, product: p }, origin);
+        }
+      } catch (err) { return send(res, 400, { error: friendly(err) }, origin); }
+      return send(res, 404, { error: 'not found' }, origin);
+    }
+
     // ---------- Slicing (OrcaSlicer on this PC) ----------
     if (req.method === 'GET' && url.pathname === '/api/slice/options') {
       const o = slicer.options(url.searchParams.get('printer'));
@@ -478,7 +529,7 @@ http.createServer(async (req, res) => {
           log(`${p.cfg.name}: ${job.result.file} sent from V9D${body.start ? ' and started' : ''}`);
           return send(res, 200, { ok: true, message }, origin);
         }
-      } catch (err) { return send(res, 400, { error: err.message }, origin); }
+      } catch (err) { return send(res, 400, { error: friendly(err) }, origin); }
       return send(res, 404, { error: 'not found' }, origin);
     }
     if (req.method === 'GET' && url.pathname === '/api/push-key') {

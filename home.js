@@ -106,6 +106,7 @@ const BusinessPage = {
   render() {
     setHeader('Business', { tabRoot: true });
     const tiles = [
+      ['#/products', 'tag', 'Products', 'What you sell: print again, cost, price, profit'],
       ['#/usage', 'chart', 'Usage & Costs', 'Material and electricity per print'],
       ['#/power', 'bolt', 'Live Power', 'What the printers draw right now'],
       ['#/radar', 'trend', 'Trend Radar', 'What’s selling, hot dates, print ideas'],
@@ -127,10 +128,23 @@ const SettingsPage = {
         <span class="w-col"><b>Notifications</b><span class="w-sub">Print alerts, maintenance reminders, tests</span></span><span class="chev" aria-hidden="true">›</span></button>
       <h3 class="day">Prices</h3>
       ${calc.html}
+      <h3 class="day">Selling</h3>
+      <div class="panel toggles">
+        <label class="field"><span>Target margin for suggested prices: <b id="mVal">${Fees.settings().margin}%</b></span>
+          <input type="range" id="sMargin" min="20" max="80" step="5" value="${Fees.settings().margin}" class="slider"></label>
+        <label class="field"><span>Printer time, £ per hour <small class="muted">— wear, failed prints, your time; added to product costs</small></span>
+          <input type="number" id="sHourly" inputmode="decimal" step="0.25" min="0" max="20" value="${Fees.settings().hourly}"></label>
+        <label class="check"><input type="checkbox" id="sEbay" ${Fees.settings().ebayBusiness ? 'checked' : ''}><span>eBay business seller <small class="muted">about 12.8% + 30p per order; private sellers pay no fees on most UK sales</small></span></label>
+        <label class="check"><input type="checkbox" id="sVat" ${Fees.settings().vatRegistered ? 'checked' : ''}><span>VAT registered <small class="muted">prices include 20% VAT you pay; VAT on platform fees is reclaimed</small></span></label>
+      </div>
       <h3 class="day">Printers</h3>
       <a class="hub-row" href="#/printers/manage"><span class="hub-icon">${icon('printer', 26)}</span>
         <span class="w-col"><b>Manage printers</b><span class="w-sub">Add, edit, export or import printers</span></span><span class="chev" aria-hidden="true">›</span></a>`;
     calc.bind();
     $('#setAlerts').onclick = () => Alerts.open();
+    $('#sMargin').oninput = (e) => { $('#mVal').textContent = `${e.target.value}%`; Fees.set({ margin: +e.target.value }); };
+    $('#sEbay').onchange = (e) => Fees.set({ ebayBusiness: e.target.checked });
+    $('#sHourly').oninput = (e) => { const v = Number(e.target.value); if (v >= 0 && v <= 20) Fees.set({ hourly: v }); };
+    $('#sVat').onchange = (e) => Fees.set({ vatRegistered: e.target.checked });
   },
 };
