@@ -635,3 +635,11 @@ body.demo .topbar h1::after, body.demo.is-home .home-head h1::after { content: '
 #view > .btn.danger.block { color: var(--danger); background: transparent; border: 1px solid rgba(229, 72, 77, .45); margin-top: 8px; }
 .chip.warn { border-color: rgba(242, 178, 51, .6); color: #F2B233; }
 .detail-grid span small { font-size: 12px; opacity: .8; }
+
+/* Input with a unit in front and/or behind, e.g. £ [1.00] per hour */
+.affix, .field .affix { display: flex; margin: 0; font-size: 16px; color: var(--text); align-items: center; gap: 8px; padding: 0 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+.affix:focus-within { border-color: var(--accent-ink); }
+.affix i { font-style: normal; color: var(--muted); white-space: nowrap; }
+.affix i:first-child { color: var(--text); font-weight: 600; }
+.field .affix input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 12px 0; }
+.field .affix input:focus { outline: none; }

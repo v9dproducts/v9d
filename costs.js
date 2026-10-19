@@ -36,10 +36,10 @@ function priceCalculator(onChange) {
   const p = Prices.get();
   const html = `
     <div class="calc">
-      <label class="field"><span>Electricity (p/kWh)</span>
-        <input id="priceElec" type="number" inputmode="decimal" step="0.001" min="0" value="${p.elec}"></label>
-      <label class="field"><span>Filament (£/kg)</span>
-        <input id="priceFil" type="number" inputmode="decimal" step="0.01" min="0" value="${p.fil}"></label>
+      <label class="field"><span>Electricity</span>
+        <span class="affix"><input id="priceElec" type="number" inputmode="decimal" step="0.001" min="0" value="${p.elec}"><i>p/kWh</i></span></label>
+      <label class="field"><span>Filament</span>
+        <span class="affix"><i>£</i><input id="priceFil" type="number" inputmode="decimal" step="0.01" min="0" value="${p.fil}"><i>/kg</i></span></label>
       <div class="calc-foot"><span id="perGram">= ${(p.fil / 10).toFixed(3)}p/g</span>
         <button class="linkbtn" id="priceReset" type="button">Reset to my prices</button></div>
     </div>`;

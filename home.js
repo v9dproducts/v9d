@@ -132,8 +132,8 @@ const SettingsPage = {
       <div class="panel toggles">
         <label class="field"><span>Target margin for suggested prices: <b id="mVal">${Fees.settings().margin}%</b></span>
           <input type="range" id="sMargin" min="20" max="80" step="5" value="${Fees.settings().margin}" class="slider"></label>
-        <label class="field"><span>Printer time, £ per hour <small class="muted">— wear, failed prints, your time; added to product costs</small></span>
-          <input type="number" id="sHourly" inputmode="decimal" step="0.25" min="0" max="20" value="${Fees.settings().hourly}"></label>
+        <label class="field"><span>Printer time <small class="muted">— wear, failed prints, your time; added to product costs</small></span>
+          <span class="affix"><i>£</i><input type="number" id="sHourly" inputmode="decimal" step="0.25" min="0" max="20" value="${Fees.settings().hourly.toFixed(2)}"><i>per hour</i></span></label>
         <label class="check"><input type="checkbox" id="sEbay" ${Fees.settings().ebayBusiness ? 'checked' : ''}><span>eBay business seller <small class="muted">about 12.8% + 30p per order; private sellers pay no fees on most UK sales</small></span></label>
         <label class="check"><input type="checkbox" id="sVat" ${Fees.settings().vatRegistered ? 'checked' : ''}><span>VAT registered <small class="muted">prices include 20% VAT you pay; VAT on platform fees is reclaimed</small></span></label>
       </div>
