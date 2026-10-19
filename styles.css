@@ -524,3 +524,72 @@ h3.day #infillVal { color: var(--text); margin-left: 4px; }
 .temp:disabled { opacity: 1; color: var(--text); }
 
 .result-preview { display: block; width: 180px; height: 180px; margin: 0 auto 8px; object-fit: contain; }
+
+/* ---------- Motion: smoother navigation, live updates and touch feedback ---------- */
+:root { --spring: cubic-bezier(.32, .72, 0, 1); --ease-out: cubic-bezier(.2, .8, .2, 1); }
+
+/* Page transitions (View Transitions API; older iPhones use the .enter-* fallback below). */
+#view { view-transition-name: page; }
+.tabbar { view-transition-name: tabbar; }
+::view-transition-old(page), ::view-transition-new(page) { animation-duration: .34s; animation-timing-function: var(--ease-out); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .22s; }
+html[data-nav="forward"]::view-transition-old(page) { animation-name: vt-out-left; }
+html[data-nav="forward"]::view-transition-new(page) { animation-name: vt-in-right; }
+html[data-nav="back"]::view-transition-old(page) { animation-name: vt-out-right; }
+html[data-nav="back"]::view-transition-new(page) { animation-name: vt-in-left; }
+html[data-nav="tab"]::view-transition-old(page) { animation-name: vt-fade-out; animation-duration: .18s; }
+html[data-nav="tab"]::view-transition-new(page) { animation-name: vt-fade-up; animation-duration: .28s; }
+@keyframes vt-in-right { from { transform: translateX(32%); opacity: 0; } }
+@keyframes vt-out-left { to { transform: translateX(-14%); opacity: 0; } }
+@keyframes vt-in-left { from { transform: translateX(-14%); opacity: 0; } }
+@keyframes vt-out-right { to { transform: translateX(32%); opacity: 0; } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-up { from { opacity: 0; transform: translateY(8px); } }
+#view.enter-forward { animation: vt-in-right .34s var(--ease-out); }
+#view.enter-back { animation: vt-in-left .34s var(--ease-out); }
+#view.enter-tab { animation: vt-fade-up .28s var(--ease-out); }
+
+/* Sliding tab highlight */
+.tab-pill { position: absolute; top: 8px; bottom: 8px; left: 0; width: 0; border-radius: 18px; background: var(--glass-on);
+  transition: transform .42s var(--spring), width .42s var(--spring); pointer-events: none; }
+.tab-pill.still { transition: none; }
+.tab-pill::after { content: ''; position: absolute; left: 50%; bottom: 3px; width: 16px; height: 3px; margin-left: -8px; border-radius: 2px; background: var(--accent); }
+.tabbar a { z-index: 1; transition: color .25s; }
+.tabbar a.on { background: transparent; }
+.tabbar a.on::after { display: none; }
+
+/* Press feedback */
+button, .btn, .hub-row, .w, .tile, .file, .chip, .temp, .fan, .maint, .tabbar a, .seg button, .slot-pick button, .idea, .hotdate {
+  transition: transform .16s var(--ease-out), background-color .2s, color .2s, opacity .2s; }
+:is(button, .btn, .hub-row, .w, .tile, .file, .chip, .temp, .fan, .maint, .tabbar a, .seg button, .slot-pick button):active:not(:disabled) { transform: scale(.965); }
+.w-hero:active, .maint:active, .file:active { transform: scale(.985); }
+.tabbar a:active { transform: scale(.92); }
+
+/* Sheets: spring up, fade the backdrop, follow the finger when swiped down */
+.sheet-backdrop { opacity: 0; transition: opacity .28s ease; }
+.sheet-backdrop.show { opacity: 1; }
+.sheet { animation: none; transform: translateY(105%); transition: transform .42s var(--spring); overscroll-behavior: contain; padding-top: 26px; }
+.sheet.show { transform: none; }
+.sheet.dragging { transition: none; }
+.sheet::before { content: ''; position: absolute; top: 9px; left: 50%; width: 38px; height: 5px; margin-left: -19px; border-radius: 3px; background: rgba(255, 255, 255, .28); }
+
+/* Skeletons */
+.sk { border-radius: var(--radius); margin-bottom: 10px; background: linear-gradient(100deg, rgba(255,255,255,.06) 30%, rgba(255,255,255,.13) 50%, rgba(255,255,255,.06) 70%);
+  background-size: 300% 100%; animation: sk 1.3s ease-in-out infinite; }
+.sk-row { display: flex; gap: 10px; }
+.sk-row .sk { flex: 1; }
+@keyframes sk { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* Smooth value changes */
+.maint-bar i, .bar i, .w-bar i, .bars .bar i { transition: width .6s var(--ease-out); }
+.status, .w-chip { transition: background-color .3s, color .3s; }
+img { transition: opacity .25s; }
+
+/* Demo mode badge */
+body.demo .topbar h1::after, body.demo.is-home .home-head h1::after { content: 'DEMO'; margin-left: 8px; padding: 2px 7px; border-radius: 999px; vertical-align: 3px;
+  font: 700 10px/1.4 var(--font-body); letter-spacing: .06em; background: var(--accent); color: #111; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

@@ -34,7 +34,7 @@ const Dash = {
           <section class="dpage" data-page="${esc(p.id)}">
             <div class="dpage-head"><h2>${esc(p.name)}</h2><span class="status" data-state></span></div>
             <div class="cam dash-cam" data-cam></div>
-            <div data-body><p class="banner">Loading…</p></div>
+            <div data-body>${skeleton('dash')}</div>
           </section>`).join('')}
       </div>`;
 
@@ -71,6 +71,10 @@ const Dash = {
     clearTimeout(this.timer);
     if (location.hash !== '#/printers') return;
     const p = this.list[this.index];
+    if (!this.data[p.id]) { // remembered reading: draw at once, refresh below
+      const c = Monitor.cached(`/api/printer/${encodeURIComponent(p.id)}`);
+      if (c) { this.data[p.id] = c; this.draw(p.id); }
+    }
     if (!document.hidden) {
       try {
         this.data[p.id] = await Monitor.get(`/api/printer/${encodeURIComponent(p.id)}`);
@@ -92,8 +96,9 @@ const Dash = {
     const state = d.full ? jobState(d) : d.state;
     chip.className = 'status ' + state;
     chip.textContent = STATE_TEXT[state] || state;
-    body.innerHTML = (this.error ? `<p class="banner warn">Connection lost — showing the last reading.</p>` : '') +
-      (d.full ? fullView(d) : simpleView(d, this.list.find((p) => p.id === id)));
+    // Patch rather than rebuild: only changed numbers update, so nothing flashes every 3 s.
+    patch(body, (this.error ? `<p class="banner warn">Connection lost — showing the last reading.</p>` : '') +
+      (d.full ? fullView(d) : simpleView(d, this.list.find((p) => p.id === id))));
     bindDash(body, d);
   },
 };
@@ -108,12 +113,13 @@ function jobState(d) {
 }
 
 function cameraUrl(id) {
+  if (Demo.active) return 'demo-camera.html';
   const u = new URL(Monitor.base());
   u.port = '8443'; u.pathname = '/stream.html';
   u.search = new URLSearchParams({ src: id, mode: 'webrtc,mse,hls' });
   return u.href;
 }
-const thumbUrl = (id, rel) => `${Monitor.base()}/api/printer/${encodeURIComponent(id)}/thumb?path=${encodeURIComponent(rel)}`;
+const thumbUrl = (id, rel) => Monitor.img(`/api/printer/${encodeURIComponent(id)}/thumb?path=${encodeURIComponent(rel)}`, rel);
 const deg = (t) => (t === null || t === undefined ? '—' : `${Math.round(t)}°`);
 const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`);
 
@@ -141,13 +147,13 @@ function fullView(d) {
       <svg class="ring" viewBox="0 0 120 120" aria-label="${prog}% complete">
         <circle cx="60" cy="60" r="52" class="ring-bg"/>
         <circle cx="60" cy="60" r="52" class="ring-fg ${st}" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - (active || st === 'complete' ? j.progress : 0))}" transform="rotate(-90 60 60)"/>
-        <text x="60" y="58" class="ring-pct">${active || st === 'complete' ? prog + '%' : '—'}</text>
+        <text x="60" y="58" class="ring-pct" data-tween>${active || st === 'complete' ? prog + '%' : '—'}</text>
         <text x="60" y="78" class="ring-sub">${active ? (j.layerCount ? `layer ${j.layer}/${j.layerCount}` : 'printing') : (STATE_TEXT[st] || '').toLowerCase()}</text>
       </svg>
       <div class="job-info">
         ${j.meta?.thumbnail && file ? `<img class="job-thumb" src="${esc(thumbUrl(d.id, j.meta.thumbnail))}" alt="" loading="lazy">` : ''}
         <div class="job-file">${file ? esc(file) : 'No print running'}</div>
-        ${active && j.timeLeft !== null ? `<div class="job-left">${fmt.hours(j.timeLeft)} left</div><div class="muted">done at ${finishTime(j.timeLeft)}</div>` : ''}
+        ${active && j.timeLeft !== null ? `<div class="job-left" data-tween>${fmt.hours(j.timeLeft)} left</div><div class="muted">done at ${finishTime(j.timeLeft)}</div>` : ''}
         ${active || st === 'complete' ? `<div class="muted">${fmt.hours(j.printDuration)} printed${grams ? ` · ${Math.round(grams)} g used` : ''}</div>` : ''}
       </div>
     </div>
@@ -169,7 +175,7 @@ function fullView(d) {
     <h3 class="day">Fans</h3>
     <div class="fan-row">
       ${[['part', 'Part cooling'], ['aux', 'Auxiliary'], ['chamber', 'Chamber']].map(([k, l]) =>
-        `<button class="fan" data-fan="${k}"><span>${l}</span><b>${pct(d.fans[k])}</b></button>`).join('')}
+        `<button class="fan" data-fan="${k}"><span>${l}</span><b data-tween>${pct(d.fans[k])}</b></button>`).join('')}
     </div>
 
     <h3 class="day">Speed</h3>
@@ -182,7 +188,7 @@ function fullView(d) {
       <span>Toolhead speed</span><b>${d.motion.speed !== null ? Math.round(d.motion.speed) + ' mm/s' : '—'}</b>
       <span>Flow</span><b>${pct(d.motion.flowFactor)}</b>
       <span>Z height</span><b>${d.motion.z !== null ? d.motion.z.toFixed(2) + ' mm' : '—'}</b>
-      <span>Power now</span><b>${d.power !== null ? Math.round(d.power) + ' W' : '—'}</b>
+      <span>Power now</span><b data-tween>${d.power !== null ? Math.round(d.power) + ' W' : '—'}</b>
       <span>Energy today</span><b>${fmt.kwh(d.todayWh || 0)}</b>
       ${j.meta?.layerHeight ? `<span>Layer height</span><b>${j.meta.layerHeight} mm</b>` : ''}
     </div>
@@ -199,7 +205,7 @@ function tempTile(key, label, t, series, readOnly) {
   return `
     <button class="temp" ${readOnly ? 'disabled' : `data-temp="${key}"`}>
       <span class="temp-label">${label}</span>
-      <span class="temp-now">${deg(t.temp)}</span>
+      <span class="temp-now" data-tween>${deg(t.temp)}</span>
       <span class="temp-target ${heating ? 'hot' : ''}">${readOnly ? 'sensor' : heating ? `→ ${deg(t.target)}` : 'off'}</span>
       ${miniSpark(series)}
     </button>`;
@@ -307,20 +313,23 @@ function fanSheet(d, key) {
 }
 
 async function filesSheet(d) {
-  openSheet(`<div class="cam-head"><h2>Files on ${esc(d.name)}</h2><button class="icon-btn" id="cancelSheet" aria-label="Close">✕</button></div><div id="fileList"><p class="banner">Loading…</p></div>`);
+  openSheet(`<div class="cam-head"><h2>Files on ${esc(d.name)}</h2><button class="icon-btn" id="cancelSheet" aria-label="Close">✕</button></div><div id="fileList">${skeleton()}</div>`);
   $('#cancelSheet').onclick = closeSheet;
-  let files;
-  try { files = (await Monitor.get(`/api/printer/${encodeURIComponent(d.id)}/files`)).files; }
-  catch (e) { $('#fileList').innerHTML = `<p class="banner">Couldn’t load files. (${esc(e.message)})</p>`; return; }
   const p = Prices.get();
-  $('#fileList').innerHTML = files.map((f, i) => `
-    <button class="file" data-file="${i}">
+  const show = ({ files }) => {
+    const box = $('#fileList');
+    if (!box) return;
+    patch(box, files.map((f, i) => `
+    <button class="file" data-file="${i}" data-key="${esc(f.path)}">
       ${f.meta?.thumbnail ? `<img src="${esc(thumbUrl(d.id, f.meta.thumbnail))}" alt="" loading="lazy">` : '<span class="file-noimg">🧊</span>'}
       <span class="file-main"><span class="file-name">${esc(fmt.file(f.path))}</span>
         <span class="muted">${f.meta?.estimatedTime ? fmt.hours(f.meta.estimatedTime) : ''}${f.meta?.filamentGrams ? ` · ${Math.round(f.meta.filamentGrams)} g · ~${fmt.money(Prices.material(f.meta.filamentGrams, p))}` : ''}</span>
         <span class="muted">${fmt.date(f.modified)}</span></span>
-    </button>`).join('') || '<div class="empty">No files on the printer.</div>';
-  document.querySelectorAll('[data-file]').forEach((b) => b.onclick = () => startSheet(d, files[+b.dataset.file]));
+    </button>`).join('') || '<div class="empty">No files on the printer.</div>');
+    box.querySelectorAll('[data-file]').forEach((b) => b.onclick = () => startSheet(d, files[+b.dataset.file]));
+  };
+  try { await Monitor.load(`/api/printer/${encodeURIComponent(d.id)}/files`, show); }
+  catch (e) { if (!Monitor.cached(`/api/printer/${encodeURIComponent(d.id)}/files`) && $('#fileList')) $('#fileList').innerHTML = `<p class="banner">Couldn’t load files. (${esc(e.message)})</p>`; }
 }
 
 function startSheet(d, f) {

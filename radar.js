@@ -13,7 +13,9 @@ const RadarPage = {
   async render() {
     setHeader('Trend Radar', { back: true });
     this.tab = store.get('radarTab', 'ideas');
-    $('#view').innerHTML = '<p class="banner">Loading…</p>';
+    $('#view').innerHTML = skeleton();
+    const remembered = Monitor.cached('/api/trends');
+    if (remembered?.research) { this.data = remembered; this.snapshot = null; this.draw(); }
     try {
       this.data = await Monitor.get('/api/trends');
     } catch (e) {
@@ -30,6 +32,7 @@ const RadarPage = {
       } catch {}
     }
     if (!this.data.research && this.tab !== 'dates') this.tab = 'dates';
+    if (currentRoute() !== 'radar') return;
     this.draw();
     if (this.data.running) this.poll();
   },
@@ -51,7 +54,7 @@ const RadarPage = {
       : this.snapshot ? `One-off snapshot · researched ${fmt.date(new Date(this.snapshot.date))}`
       : d.updatedAt ? `Updated ${fmt.date(d.updatedAt)} ${fmt.time(d.updatedAt)}${d.cost?.usd ? ` · cost ~${approxGBP(d.cost.usd * USD_TO_GBP)}` : ''} · next update 06:00 UK`
       : d.hasKey ? 'First update runs shortly.' : '';
-    $('#view').innerHTML = `
+    patch($('#view'), `
       ${d.offline ? `<p class="banner">${/404/.test(d.offline)
         ? 'Hot dates need the latest V9D monitor on the home PC — run the update there.'
         : 'Can’t reach the V9D monitor — check Tailscale is on.'} The snapshot below works anyway.</p>` : ''}
@@ -65,8 +68,8 @@ const RadarPage = {
         ${[['ideas', 'Print ideas'], ['dates', 'Hot dates'], ['trending', 'Trending']]
           .map(([k, l]) => `<button class="${this.tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}
       </div>
-      <div id="radarBody"></div>`;
-    document.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => {
+      <div id="radarBody"></div>`);
+    document.querySelectorAll('#view [data-tab]').forEach((b) => b.onclick = () => {
       this.tab = b.dataset.tab; store.set('radarTab', this.tab); this.draw();
     });
     const refresh = $('#radarRefresh');

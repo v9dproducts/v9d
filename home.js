@@ -11,16 +11,25 @@ const HomePage = {
           <h1>Dashboard</h1></div>
         <img class="home-logo" src="icons/logo-banner.png" alt="V9D — Think. Make. V9D.">
       </div>
-      <div class="widgets" id="widgets"><p class="banner">Loading…</p></div>`;
+      <div class="widgets" id="widgets">${skeleton('widgets')}</div>`;
+    const list = await Printers.load();
+    // Remembered data first (instant), then fresh data, then a quiet refresh every few seconds.
+    const PATHS = ['/api/status', '/api/power', '/api/maintenance', '/api/trends'];
+    const remembered = PATHS.map((p) => Monitor.cached(p));
+    if (remembered[0]) this.draw(this.shape(remembered, list));
+    clearTimeout(this.timer);
+    const refresh = async () => {
+      const fresh = await Promise.all(PATHS.map((p) => Monitor.get(p).catch(() => null)));
+      if (currentRoute() !== '') return; // navigated away meanwhile
+      if (!fresh[3]?.research && !this.snapshot) this.snapshot = await fetch('trends-snapshot.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+      this.draw(this.shape(fresh, list));
+      this.timer = setTimeout(refresh, 5000);
+    };
+    await refresh();
+  },
 
-    const get = (path) => Monitor.get(path).catch(() => null);
-    const [status, power, maint, trends, list] = await Promise.all([
-      get('/api/status'), get('/api/power'), get('/api/maintenance'), get('/api/trends'), Printers.load(),
-    ]);
-    if (location.hash.replace(/^#\/?/, '') !== '') return; // navigated away meanwhile
-    let research = trends?.research;
-    if (!research) research = await fetch('trends-snapshot.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
-    this.draw({ status, power, maint, trends, research, list });
+  shape([status, power, maint, trends], list) {
+    return { status, power, maint, trends, research: trends?.research || this.snapshot || null, list };
   },
 
   draw({ status, power, maint, trends, research, list }) {
@@ -58,7 +67,7 @@ const HomePage = {
     const watts = power ? Object.values(power.printers).reduce((a, x) => a + (x.watts || 0), 0) : null;
     const todayWh = power ? Object.values(power.printers).reduce((a, x) => a + (x.todayWh || 0), 0) : 0;
     const powerHtml = `<a class="w" href="#/power"><span class="w-ico">${icon('bolt', 26)}</span>
-      <span class="w-big">${watts === null ? '—' : Math.round(watts) + ' W'}</span>
+      <span class="w-big" data-tween>${watts === null ? '—' : Math.round(watts) + ' W'}</span>
       <span class="w-sub">${watts === null ? 'Power' : `${fmt.money(Prices.energy(todayWh, p))} so far today`}</span></a>`;
 
     const items = maint ? Object.values(maint.printers).flatMap((pr) => pr.items.map((i) => ({ ...i, printer: pr.name }))) : [];
@@ -81,14 +90,15 @@ const HomePage = {
       <span class="w-col"><span class="w-label">Idea of the day</span><b>${esc(idea.title)}</b>
       <span class="w-sub">Sells ${esc(idea.suggestedPrice.split(' (')[0])} · costs ~${fmt.money(Prices.material(idea.estGrams, p) + Prices.energy(idea.estHours * 225, p))}</span></span></a>` : '';
 
-    $('#widgets').innerHTML = (offline ? '<p class="banner">Can’t reach the V9D monitor — showing what’s available. Check Tailscale is on.</p>' : '') +
-      heroHtml + otherHtml + powerHtml + maintHtml + dateHtml + ideaHtml;
+    if (!$('#widgets')) return;
+    patch($('#widgets'), (offline ? '<p class="banner">Can’t reach the V9D monitor — showing what’s available. Check Tailscale is on.</p>' : '') +
+      heroHtml + otherHtml + powerHtml + maintHtml + dateHtml + ideaHtml);
 
     // Tapping a printer widget opens the dashboard on that printer.
-    document.querySelectorAll('[data-printer]').forEach((a) => a.addEventListener('click', () => {
+    document.querySelectorAll('[data-printer]').forEach((a) => a.onclick = () => {
       const i = list.findIndex((x) => x.id === a.dataset.printer);
       if (i >= 0) store.set('dashIndex', i);
-    }));
+    });
   },
 };
 

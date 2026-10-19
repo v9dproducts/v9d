@@ -7,16 +7,19 @@ const MaintPage = {
 
   async render() {
     setHeader('Maintenance', { back: true });
-    $('#view').innerHTML = `<p class="banner">Loading…</p>`;
+    $('#view').innerHTML = skeleton();
+    this.data = null;
     try {
-      this.data = await Monitor.get('/api/maintenance');
+      await Monitor.load('/api/maintenance', (data) => {
+        if (currentRoute() !== 'maintenance') return;
+        this.data = data;
+        const ids = Object.keys(data.printers);
+        this.printer = ids.includes(store.get('maintPrinter')) ? store.get('maintPrinter') : ids[0];
+        this.draw();
+      });
     } catch (e) {
-      $('#view').innerHTML = `<p class="banner">Can’t reach the V9D monitor — check Tailscale is on. (${esc(e.message)})</p>`;
-      return;
+      if (!this.data) $('#view').innerHTML = `<p class="banner">Can’t reach the V9D monitor — check Tailscale is on. (${esc(e.message)})</p>`;
     }
-    const ids = Object.keys(this.data.printers);
-    this.printer = ids.includes(store.get('maintPrinter')) ? store.get('maintPrinter') : ids[0];
-    this.draw();
   },
 
   draw() {
@@ -27,7 +30,7 @@ const MaintPage = {
     const names = Object.fromEntries(pr.items.map((i) => [i.id, i.name]));
     const unlogged = items.filter((i) => !i.logged).length;
 
-    $('#view').innerHTML = `
+    patch($('#view'), `
       <div class="chips">${ids.map((id) => `<button class="chip ${id === this.printer ? 'on' : ''}" data-mprinter="${esc(id)}">${esc(this.data.printers[id].name)}</button>`).join('')}</div>
       <button class="btn primary block" id="performBtn">Perform maintenance</button>
       ${unlogged ? `<p class="banner">${unlogged} item${unlogged > 1 ? 's have' : ' has'} no maintenance logged yet, so ${unlogged > 1 ? 'they count' : 'it counts'} from the first print the printer remembers. Log when you last did ${unlogged > 1 ? 'them' : 'it'} (you can pick a past date) to start reminders.</p>` : ''}
@@ -48,7 +51,7 @@ const MaintPage = {
           <div class="job-name">${esc(h.items.map((x) => names[x] || x).join(', '))}</div>
           <div class="muted">${fmt.date(h.date)}${h.note ? ` · ${esc(h.note)}` : ''}</div>
         </div></div>`).join('') || '<p class="hint">Nothing logged yet.</p>'}
-      <p class="hint">Intervals marked “Creality” come from Creality’s maintenance guides; others are typical figures. Print hours and filament come from the printer’s own history. You’ll get a notification when something is due soon and when it’s due.</p>`;
+      <p class="hint">Intervals marked “Creality” come from Creality’s maintenance guides; others are typical figures. Print hours and filament come from the printer’s own history. You’ll get a notification when something is due soon and when it’s due.</p>`);
 
     document.querySelectorAll('[data-mprinter]').forEach((b) => b.onclick = () => {
       this.printer = b.dataset.mprinter; store.set('maintPrinter', this.printer); this.draw();

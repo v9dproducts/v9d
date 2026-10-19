@@ -14,7 +14,7 @@ const PrintPage = {
   async render() {
     setHeader('Print a file', { back: true, backTo: '#/printers' });
     clearTimeout(this.poll);
-    $('#view').innerHTML = '<p class="banner">Loading…</p>';
+    $('#view').innerHTML = skeleton();
     const id = store.get('printJob', null);
     const list = await Printers.load();
     const [all, job] = await Promise.all([
@@ -246,7 +246,7 @@ const PrintPage = {
     return `
       <h3 class="day">Ready to print</h3>
       <div class="panel result">
-        ${r.preview ? `<img class="result-preview" src="${esc(Monitor.base())}/api/slice/${esc(j.id)}/preview?t=${esc(j.started)}" alt="Preview of the print">` : ''}
+        ${r.preview ? `<img class="result-preview" src="${esc(Monitor.img(`/api/slice/${j.id}/preview?t=${j.started}`, Demo.active ? Demo.preview(j.id).replace('icons/demo/', '') : ''))}" alt="Preview of the print">` : ''}
         <div class="result-top">
           <div><span class="w-big">${r.seconds ? fmt.hours(r.seconds) : '—'}</span><span class="muted">done about ${r.seconds ? finishTime(r.seconds) : '—'} if started now</span></div>
           <div class="result-cost"><span class="w-big">${fmt.money(material + energy)}</span><span class="muted">${fmt.money(material)} filament · ${fmt.money(energy)} power</span></div>
@@ -285,6 +285,7 @@ const PrintPage = {
     const btns = ['#sendOnly', '#printNow'].map((s) => $(s)).filter(Boolean);
     btns.forEach((b) => { b.disabled = true; });
     try {
+      if (Demo.active) { const r = await Demo.post(`/api/slice/${this.job.id}/send`, { start, plateClear: start }); toast(r.message); return true; }
       // Large files can take a while to reach the printer.
       const res = await fetch(`${Monitor.base()}/api/slice/${this.job.id}/send`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -310,6 +311,11 @@ const PrintPage = {
     const box = $('#upProgress');
     box.innerHTML = `<div class="panel"><b>Uploading ${esc(file.name)}…</b><div class="bar"><i id="upBar" style="width:0%"></i></div></div>`;
     $('#pickFile').disabled = true;
+    if (Demo.active) {
+      Demo.upload(file, (f) => { if ($('#upBar')) $('#upBar').style.width = `${Math.round(f * 100)}%`; })
+        .then((job) => { this.job = job; store.set('printJob', job.id); this.draw(); });
+      return;
+    }
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${Monitor.base()}/api/slice/upload?name=${encodeURIComponent(file.name)}`);
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');

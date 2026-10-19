@@ -80,7 +80,7 @@ const UsagePage = {
           .map(([k, l]) => `<button class="chip" data-period="${k}">${l}</button>`).join('')}
       </div>
       <div class="chips" id="printerChips"></div>
-      <div id="usageResults"><p class="banner">Loading…</p></div>`;
+      <div id="usageResults">${skeleton()}</div>`;
     calc.bind();
     $('#periodChips').onclick = (e) => {
       const b = e.target.closest('[data-period]');
@@ -88,11 +88,13 @@ const UsagePage = {
       this.period = b.dataset.period; store.set('usagePeriod', this.period); this.renderResults();
     };
     try {
-      this.data = await Monitor.get('/api/usage');
+      await Monitor.load('/api/usage', (data) => { if (currentRoute() === 'usage') { this.data = data; this.showData(); } });
     } catch (e) {
-      $('#usageResults').innerHTML = `<p class="banner">Can’t reach the V9D monitor — check Tailscale is on. (${esc(e.message)})</p>`;
-      return;
+      if (!this.data) $('#usageResults').innerHTML = `<p class="banner">Can’t reach the V9D monitor — check Tailscale is on. (${esc(e.message)})</p>`;
     }
+  },
+
+  showData() {
     const printers = Object.entries(this.data.printers);
     $('#printerChips').innerHTML = [['all', 'All printers'], ...printers.map(([id, p]) => [id, p.name])]
       .map(([k, l]) => `<button class="chip" data-printer="${esc(k)}">${esc(l)}</button>`).join('');
@@ -191,7 +193,7 @@ const UsagePage = {
         </div>`;
     }
 
-    $('#usageResults').innerHTML = `
+    patch($('#usageResults'), `
       <div class="hero"><div class="hero-label">Total cost</div><div class="hero-num">${fmt.money(matCost + elecCost)}</div>
         <div class="muted">${jobs.length} prints · ${fmt.hours(secs)} printing</div></div>
       <div class="tiles2">
@@ -201,7 +203,7 @@ const UsagePage = {
       ${breakdown}
       ${perPrinter ? `<div class="panel"><div class="eb-title">Total per printer — material + electricity</div>${perPrinter}</div>` : ''}
       ${list || '<div class="empty">No prints in this period.</div>'}
-      <p class="hint">Material is reported by the printers (1.75 mm filament, weight from the material’s density). Electricity is estimated from the heaters’ power — see Live Power. Standby assumes the printers are on 24/7, idling at ${standbyNote} when not printing${this.period === 'all' ? ', counted from each printer’s first recorded print' : ''}.${estimated ? ` * Prints from before monitoring started are estimated from print time.` : ''}</p>`;
+      <p class="hint">Material is reported by the printers (1.75 mm filament, weight from the material’s density). Electricity is estimated from the heaters’ power — see Live Power. Standby assumes the printers are on 24/7, idling at ${standbyNote} when not printing${this.period === 'all' ? ', counted from each printer’s first recorded print' : ''}.${estimated ? ` * Prints from before monitoring started are estimated from print time.` : ''}</p>`);
   },
 };
 
@@ -215,10 +217,12 @@ const PowerPage = {
   render() {
     setHeader('Live Power', { back: true });
     const calc = priceCalculator(() => this.draw());
-    $('#view').innerHTML = `<div id="powerTotal"></div><div id="powerCards"><p class="banner">Loading…</p></div>
+    this.data = Monitor.cached('/api/power');
+    $('#view').innerHTML = `<div id="powerTotal"></div><div id="powerCards">${skeleton()}</div>
       <details class="calc-wrap"><summary>Prices</summary>${calc.html}</details>
       <p class="hint">Power is estimated, not metered. The K2 Plus reports how hard each heater is working; the K1 Max’s heaters are estimated from its temperatures. Rated heater power: beds 800 W, hotends 100 W (K2 Plus) / 60 W (K1 Max).</p>`;
     calc.bind();
+    this.draw();
     this.refresh();
   },
 
@@ -243,13 +247,13 @@ const PowerPage = {
     const entries = Object.entries(this.data.printers);
     const totalW = entries.reduce((a, [, x]) => a + (x.watts || 0), 0);
     const todayWh = entries.reduce((a, [, x]) => a + x.todayWh, 0);
-    $('#powerTotal').innerHTML = `
+    patch($('#powerTotal'), `
       <div class="hero"><div class="hero-label">All printers now</div>
-        <div class="hero-num">${Math.round(totalW)} W</div>
+        <div class="hero-num" data-tween>${Math.round(totalW)} W</div>
         <div class="muted">${fmt.money(Prices.energy(totalW, p))} per hour · today ${fmt.kwh(todayWh)} (${fmt.money(Prices.energy(todayWh, p))})</div></div>
-      ${this.error ? `<p class="banner">Connection lost — showing last reading. (${esc(this.error)})</p>` : ''}`;
+      ${this.error ? `<p class="banner">Connection lost — showing last reading. (${esc(this.error)})</p>` : ''}`);
 
-    $('#powerCards').innerHTML = entries.map(([id, x]) => {
+    patch($('#powerCards'), entries.map(([id, x]) => {
       const parts = x.parts || {};
       const rows = [['Bed', parts.bed], ['Hotend', parts.hotend], ['Chamber heater', parts.chamber], ['Fans', parts.fans], ['Motors', parts.motion], ['Electronics', parts.electronics]]
         .filter(([label, v]) => v !== undefined && (v > 0 || label !== 'Chamber heater' || id === 'k2-plus'));
@@ -260,7 +264,7 @@ const PowerPage = {
         <div class="panel power">
           <div class="power-head">
             <div><div class="title">${esc(x.name)}</div><div class="status ${esc(x.state)}">${esc(STATE_LABEL[x.state] || 'Connecting…')}</div></div>
-            <div class="power-num">${x.watts === null ? '—' : Math.round(x.watts) + ' W'}</div>
+            <div class="power-num" data-tween>${x.watts === null ? '—' : Math.round(x.watts) + ' W'}</div>
           </div>
           <div class="muted">${x.watts === null ? 'No reading' : fmt.money(Prices.energy(x.watts, p)) + ' per hour'}
             · today ${fmt.kwh(x.todayWh)} (${fmt.money(Prices.energy(x.todayWh, p))})
@@ -272,7 +276,7 @@ const PowerPage = {
               <b>${Math.round(v || 0)} W</b></div>`).join('')}</div>
           <div class="muted temps">${[t(inp.bed, 'Bed'), t(inp.hotend, 'Hotend'), t(inp.chamber, 'Chamber')].filter(Boolean).join(' · ')}${inp.method ? ` — ${esc(inp.method)}` : ''}</div>
         </div>`;
-    }).join('');
+    }).join(''));
     bindSparklines();
   },
 };
