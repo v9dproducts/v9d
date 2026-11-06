@@ -51,6 +51,11 @@ class Discover {
     if (!this.token()) throw new Error('No Thingiverse token on the home PC yet');
     this.spend();
     const res = await fetch(API + path, { headers: { Authorization: `Bearer ${this.token()}` }, signal: AbortSignal.timeout(15000) });
+    // Thingiverse's Cloudflare bot check sometimes answers API calls with a "Just a moment…" page.
+    // That's on their side (not the token) and V9D doesn't try to get around it.
+    if (res.headers.get('cf-mitigated') === 'challenge' || /text\/html/i.test(res.headers.get('content-type') || '')) {
+      throw new Error('Thingiverse’s bot protection is blocking API requests right now — not a problem with your token. Try again later.');
+    }
     if (res.status === 401 || res.status === 403) throw new Error('Thingiverse refused the token — check it in config.json');
     if (res.status === 429) throw new Error('Thingiverse says too many requests — try again in a few minutes');
     if (!res.ok) throw new Error(`Thingiverse replied ${res.status}`);
