@@ -643,3 +643,24 @@ body.demo .topbar h1::after, body.demo.is-home .home-head h1::after { content: '
 .affix i:first-child { color: var(--text); font-weight: 600; }
 .field .affix input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 12px 0; }
 .field .affix input:focus { outline: none; }
+
+/* ---------- Home: Today ---------- */
+.w-today { grid-column: 1 / -1; padding: 12px 6px 6px; gap: 0; }
+.today-head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 10px 6px; }
+.today-head b { font-family: var(--font-display); font-size: 17px; }
+.today-row { display: grid; grid-template-columns: 46px 10px 1fr auto; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 12px; color: var(--on-bg); text-decoration: none; }
+.today-row + .today-row { border-top: 1px solid var(--glass-line); }
+.today-row:active { background: rgba(255, 255, 255, .06); transform: none; }
+.today-when { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--on-bg-muted); text-align: right; }
+.today-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--on-bg-muted); justify-self: center; }
+.today-row .w-col { display: flex; flex-direction: column; min-width: 0; }
+.today-text { font-size: 15px; line-height: 1.3; }
+.today-text b { font-weight: 700; }
+.today-dot.busy { background: var(--accent); box-shadow: 0 0 0 0 rgba(244, 122, 32, .6); animation: pulse 1.8s infinite; }
+.today-dot.ok, .today-dot.free { background: var(--ok); }
+.today-dot.warn { background: #F2B233; }
+.today-dot.bad { background: var(--danger); }
+.today-when.busy { color: var(--accent-ink); }
+.today-when.warn { color: #F2B233; }
+.today-when.bad { color: var(--danger); }
+@keyframes pulse { 70% { box-shadow: 0 0 0 7px rgba(244, 122, 32, 0); } 100% { box-shadow: 0 0 0 0 rgba(244, 122, 32, 0); } }
