@@ -107,7 +107,9 @@ function unzip(buf, wanted) {
     if (wanted(name)) {
       const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
       const raw = buf.subarray(start, start + size);
-      out[name] = method === 8 ? zlib.inflateRawSync(raw) : raw;
+      // Cap the unpacked size so a booby-trapped file ("zip bomb") can't exhaust memory.
+      try { out[name] = method === 8 ? zlib.inflateRawSync(raw, { maxOutputLength: 300 * 1024 * 1024 }) : raw; }
+      catch { throw new Error('This 3MF is too large or damaged to open'); }
     }
     p += 46 + nameLen + extraLen + commentLen;
   }

@@ -242,7 +242,7 @@ function loadMatches() {
     el.dataset.loaded = '1';
     el.querySelector('[data-more]').onclick = () => openDiscover(el.dataset.q, ctx(el));
     let d;
-    try { d = await Monitor.get(`/api/discover?${new URLSearchParams({ q: el.dataset.q, sellable: '1', sort: 'popular' })}`); }
+    try { d = await Monitor.get(`/api/discover?${new URLSearchParams({ q: el.dataset.q, sellable: '1', sort: 'popular', limit: '8' })}`); }
     catch { el.querySelector('.match-row').innerHTML = '<span class="muted">Couldn’t search right now.</span>'; return; }
     const row = el.querySelector('.match-row');
     if (!d.available) { row.innerHTML = '<span class="muted">Connect Thingiverse to see matching models (Business → Discover).</span>'; return; }

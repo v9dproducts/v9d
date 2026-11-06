@@ -9,6 +9,7 @@ const LIST_TTL = 10 * 60 * 1000;
 const THING_TTL = 24 * 3600 * 1000;
 const PRINTABLE = /\.(stl|3mf)$/i;
 const MAX_FILE = 200 * 1024 * 1024;
+const BUDGET = 240; // Thingiverse allows 300 requests per 5 minutes; stay well under it
 
 // Licences that allow selling prints (no "Non-Commercial"). No-Derivatives still allows selling
 // unmodified prints, so it counts, with a note.
@@ -30,6 +31,15 @@ class Discover {
     this.slicer = slicer;
     this.log = log;
     this.cache = new Map();
+    this.calls = [];
+  }
+
+  // Counts requests over the last 5 minutes so V9D never runs into Thingiverse's rate limit.
+  spend() {
+    const since = Date.now() - 5 * 60 * 1000;
+    this.calls = this.calls.filter((t) => t > since);
+    if (this.calls.length >= BUDGET) throw new Error('Thingiverse request limit reached — try again in a few minutes');
+    this.calls.push(Date.now());
   }
 
   token() { return this.config.thingiverseToken || process.env.THINGIVERSE_TOKEN || ''; }
@@ -39,6 +49,7 @@ class Discover {
     const hit = this.cache.get(path);
     if (hit && Date.now() - hit.at < ttl) return hit.data;
     if (!this.token()) throw new Error('No Thingiverse token on the home PC yet');
+    this.spend();
     const res = await fetch(API + path, { headers: { Authorization: `Bearer ${this.token()}` }, signal: AbortSignal.timeout(15000) });
     if (res.status === 401 || res.status === 403) throw new Error('Thingiverse refused the token — check it in config.json');
     if (res.status === 429) throw new Error('Thingiverse says too many requests — try again in a few minutes');
@@ -58,8 +69,9 @@ class Discover {
   }
 
   // sort: popular | trending (popular, posted in the last 7 days) | newest | makes
-  async list({ q = '', sort = 'trending', sellable = false, page = 1 } = {}) {
-    const params = new URLSearchParams({ type: 'things', per_page: '30', page: String(Math.max(1, Math.min(20, page | 0))) });
+  // limit: how many to fetch (Trend Radar's strips ask for 8, Discover for 30).
+  async list({ q = '', sort = 'trending', sellable = false, page = 1, limit = 30 } = {}) {
+    const params = new URLSearchParams({ type: 'things', per_page: String(Math.max(1, Math.min(30, limit | 0 || 30))), page: String(Math.max(1, Math.min(20, page | 0))) });
     params.set('sort', sort === 'newest' ? 'newest' : sort === 'makes' ? 'makes' : 'popular');
     if (sort === 'trending') params.set('posted_after', 'now-7d');
     const term = String(q).trim().slice(0, 80);
@@ -67,7 +79,7 @@ class Discover {
     let items = (data.hits || data || []).filter((t) => !t.is_nsfw).map((t) => this.summary(t));
     if (sellable) {
       // The search results may leave the licence out; look it up per model (cached for a day).
-      await Promise.all(items.filter((i) => !i.licence).map(async (i) => {
+      await Promise.all(items.filter((i) => !i.licence).slice(0, 12).map(async (i) => {
         try { const t = await this.api(`/things/${i.id}`, THING_TTL); i.licence = licenceInfo(t.license); } catch {}
       }));
       items = items.filter((i) => i.licence?.sellable);
@@ -104,6 +116,7 @@ class Discover {
     if (!f) throw new Error('That file isn’t part of this model');
     if (!f.printable) throw new Error('Only STL and 3MF files can be sliced');
     if (f.size > MAX_FILE) throw new Error('File is larger than 200 MB');
+    this.spend();
     const res = await fetch(`${API}/files/${f.id}/download`, { headers: { Authorization: `Bearer ${this.token()}` }, redirect: 'follow', signal: AbortSignal.timeout(120000) });
     if (!res.ok) throw new Error(`Thingiverse replied ${res.status} for the download`);
     if (Number(res.headers.get('content-length')) > MAX_FILE) throw new Error('File is larger than 200 MB');

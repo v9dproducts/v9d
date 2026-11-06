@@ -458,7 +458,7 @@ http.createServer(async (req, res) => {
       if (!discover.available()) return send(res, 200, { available: false, items: [] }, origin);
       try {
         const q = url.searchParams;
-        return send(res, 200, { available: true, ...(await discover.list({ q: q.get('q') || '', sort: q.get('sort') || 'trending', sellable: q.get('sellable') === '1', page: Number(q.get('page')) || 1 })) }, origin);
+        return send(res, 200, { available: true, ...(await discover.list({ q: q.get('q') || '', sort: q.get('sort') || 'trending', sellable: q.get('sellable') === '1', page: Number(q.get('page')) || 1, limit: Number(q.get('limit')) || 30 })) }, origin);
       } catch (err) { return send(res, 502, { error: err.message }, origin); }
     }
     const dm = url.pathname.match(/^\/api\/discover\/thing\/(\d{1,12})(\/print)?$/);
