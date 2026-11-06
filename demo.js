@@ -48,7 +48,13 @@ const Demo = {
     }
     if (p === '/api/discover') {
       const q = (u.searchParams.get('q') || '').toLowerCase(), sort = u.searchParams.get('sort');
-      let items = this.models.map((m) => this.modelSummary(m)).filter((m) => !q || m.name.toLowerCase().includes(q));
+      // Demo search: models whose name or description shares a word with the query; if none do,
+      // a few stand-ins (picked from the query) so every Trend Radar idea shows something.
+      const words = q.split(/\s+/).filter((w) => w.length > 2);
+      const hit = (m) => words.some((w) => `${m.name} ${m.about}`.toLowerCase().includes(w.replace(/s$/, '')));
+      let pool = !q ? this.models : this.models.filter(hit);
+      if (q && !pool.length) { const h = [...q].reduce((a, c) => a + c.charCodeAt(0), 0); pool = [0, 1, 2, 3].map((k) => this.models[(h + k * 2) % this.models.length]); }
+      let items = pool.map((m) => this.modelSummary(m));
       if (u.searchParams.get('sellable') === '1') items = items.filter((m) => m.licence.sellable);
       items.sort(sort === 'newest' ? (a, b) => b.id - a.id : sort === 'makes' ? (a, b) => b.makes - a.makes : (a, b) => b.likes - a.likes);
       return { available: true, total: items.length, items: Number(u.searchParams.get('page')) > 1 ? [] : items };
@@ -102,7 +108,8 @@ const Demo = {
       const l = this.licence(m.licence);
       this.jobs[id] = { id, name: m.name, ext, size: 400000, created: Date.now(), state: 'uploaded', plates: 1,
         colours: ext === '.3mf' ? [{ colour: '#E5484D', type: 'PLA', used: true }, { colour: '#2B6CB0', type: 'PLA', used: true }] : [{ colour: '#FFFFFF', type: '', used: true }],
-        source: { site: 'Thingiverse', id: m.id, url: `https://www.thingiverse.com/thing:${m.id}`, file: f, creator: m.creator, licence: m.licence, sellable: l.sellable } };
+        source: { site: 'Thingiverse', id: m.id, url: `https://www.thingiverse.com/thing:${m.id}`, file: f, creator: m.creator, licence: m.licence, sellable: l.sellable,
+          occasion: body.occasion || null, idea: body.idea || null } };
       await new Promise((r) => setTimeout(r, 900));
       return { ...this.jobs[id] };
     }
@@ -416,7 +423,7 @@ const Demo = {
 
   fromJob(x, j) {
     Object.assign(x, { ext: j.ext, colours: j.colours, plates: 1, settings: j.settings, result: { ...j.result, printer: j.settings.printer },
-      demoImg: j.ext === '.3mf' ? 'blocks.png' : 'block.png', updated: Date.now() });
+      demoImg: j.ext === '.3mf' ? 'blocks.png' : 'block.png', source: j.source || x.source || null, updated: Date.now() });
   },
 
   products: (() => {

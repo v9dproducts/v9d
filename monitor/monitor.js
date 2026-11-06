@@ -465,7 +465,7 @@ http.createServer(async (req, res) => {
     if (dm) {
       try {
         if (req.method === 'GET' && !dm[2]) return send(res, 200, await discover.thing(dm[1]), origin);
-        if (req.method === 'POST' && dm[2]) return send(res, 200, slicer.public(await discover.toJob(dm[1], (await readBody(req)).file)), origin);
+        if (req.method === 'POST' && dm[2]) { const b = await readBody(req); return send(res, 200, slicer.public(await discover.toJob(dm[1], b.file, b)), origin); }
       } catch (err) { return send(res, 400, { error: err.message }, origin); }
     }
 

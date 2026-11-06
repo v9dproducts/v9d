@@ -97,7 +97,8 @@ class Discover {
   }
 
   // Downloads one STL/3MF into a new slice job. Nothing else is ever downloaded or opened.
-  async toJob(thingId, fileId) {
+  // extra: { occasion, idea } when it came from Trend Radar, kept with the product.
+  async toJob(thingId, fileId, extra = {}) {
     const t = await this.thing(thingId);
     const f = t.files.find((x) => String(x.id) === String(fileId));
     if (!f) throw new Error('That file isn’t part of this model');
@@ -111,6 +112,7 @@ class Discover {
     const name = `${t.name}${t.files.filter((x) => x.printable).length > 1 ? ` – ${f.name.replace(PRINTABLE, '')}` : ''}`.slice(0, 80);
     return this.slicer.fromBuffer(buf, name, ext, {
       site: 'Thingiverse', id: t.id, url: t.url, file: f.name, creator: t.creator, licence: t.licence.name, sellable: t.licence.sellable,
+      occasion: String(extra.occasion || '').slice(0, 60) || null, idea: String(extra.idea || '').slice(0, 120) || null,
     });
   }
 }

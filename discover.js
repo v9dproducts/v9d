@@ -8,12 +8,15 @@ const DiscoverPage = {
   page: 1,
 
   opts() { return { sort: 'trending', sellable: true, q: '', ...store.get('discover', {}) }; },
+  // Which Trend Radar idea / hot date the search came from (kept for 2 hours).
+  context() { const c = store.get('discoverContext', null); return c && Date.now() - c.at < 2 * 3600 * 1000 ? c : null; },
   setOpts(o) { store.set('discover', { ...this.opts(), ...o }); },
 
   render() {
     setHeader('Discover', { back: true });
     const o = this.opts();
     $('#view').innerHTML = `
+      ${this.context() ? `<p class="banner ctx">${icon('trend', 16)} For ${esc(this.context().occasion || this.context().idea)}${this.context().occasion && this.context().idea ? ` — ${esc(this.context().idea)}` : ''}<button class="linkbtn" id="ctxClear">✕</button></p>` : ''}
       <div class="disc-search"><input id="dq" type="search" placeholder="Search Thingiverse — e.g. cable clip, planter" value="${esc(o.q)}" enterkeyhint="search"></div>
       <div class="seg disc-sort">${[['trending', 'This week'], ['popular', 'All time'], ['makes', 'Most made'], ['newest', 'Newest']]
         .map(([k, l]) => `<button data-sort="${k}" class="${o.sort === k ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -27,6 +30,7 @@ const DiscoverPage = {
       this.setOpts({ sort: b.dataset.sort }); this.load(true);
     });
     $('#dsell').onchange = (e) => { this.setOpts({ sellable: e.target.checked }); this.load(true); };
+    if ($('#ctxClear')) $('#ctxClear').onclick = () => { store.set('discoverContext', null); $('#ctxClear').parentElement.remove(); };
     this.load(true);
   },
 
@@ -109,7 +113,8 @@ const DiscoverPage = {
       document.querySelectorAll('[data-file]').forEach((x) => { x.disabled = true; });
       b.textContent = 'Downloading…';
       try {
-        const job = await Monitor.post(`/api/discover/thing/${t.id}/print`, { file: b.dataset.file });
+        const ctx = this.context() || {};
+        const job = await Monitor.post(`/api/discover/thing/${t.id}/print`, { file: b.dataset.file, occasion: ctx.occasion || null, idea: ctx.idea || null });
         store.set('printJob', job.id);
         location.hash = '#/printers/print';
       } catch (e) {
@@ -128,7 +133,7 @@ function licenceBadge(l) {
 // Where a sliced file or product came from: site, designer, licence.
 function sourceHtml(src) {
   if (!src) return '';
-  return `<span class="src">From <a href="${esc(src.url)}" target="_blank" rel="noopener">${esc(src.site)}</a>${src.creator ? ` · by ${esc(src.creator)}` : ''} · ${esc(src.licence || 'licence unknown')} ${licenceBadge({ sellable: src.sellable })}</span>`;
+  return `<span class="src">From <a href="${esc(src.url)}" target="_blank" rel="noopener">${esc(src.site)}</a>${src.creator ? ` · by ${esc(src.creator)}` : ''} · ${esc(src.licence || 'licence unknown')} ${licenceBadge({ sellable: src.sellable })}${src.occasion ? `<br>📅 For ${esc(src.occasion)}` : ''}</span>`;
 }
 
 // ---------- Settings → Storage (home PC drive) ----------
@@ -157,3 +162,6 @@ const StoragePage = {
     };
   },
 };
+
+// Opening Discover from the hub or Print a file starts a fresh search, not tied to an idea.
+document.addEventListener('click', (e) => { if (e.target.closest('a[href="#/discover"]')) store.set('discoverContext', null); });

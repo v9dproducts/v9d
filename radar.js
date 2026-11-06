@@ -136,10 +136,12 @@ const RadarPage = {
               <span>Difficulty</span><b>${esc(i.difficulty)}</b>
             </div>
             <details><summary>Why & design source</summary><p class="muted">${esc(i.why)}</p><p class="muted">Design: ${esc(i.designSource)}</p></details>
+            ${matchStrip(searchFor(i), i.forEvent, i.title)}
           </div>`;
       }).join('') || '<div class="empty">No ideas for this filter.</div>'}
       <p class="hint">Ideas are researched by Claude each morning and checked against your printers’ size and materials. Cost uses your Usage & Costs prices. Always check a design’s licence allows selling prints.</p>`;
     document.querySelectorAll('[data-ifilter]').forEach((b) => b.onclick = () => { this.filter = b.dataset.ifilter; this.drawIdeas(); });
+    loadMatches();
   },
 
   drawDates() {
@@ -166,13 +168,18 @@ const RadarPage = {
             <div class="muted">${e.daysAway === 0 ? 'Today' : `in ${e.daysAway} days`} · ${esc(e.kind.replace('-', ' '))}</div>
             ${listBy}
             <div class="muted">${esc(e.hint)}</div>
-            ${n ? `<button class="linkbtn" data-event="${esc(e.name)}">${n} print idea${n > 1 ? 's' : ''} →</button>` : ''}
+            <span class="hd-actions">${n ? `<button class="linkbtn" data-event="${esc(e.name)}">${n} print idea${n > 1 ? 's' : ''} →</button>` : ''}
+              <button class="linkbtn" data-findfor="${esc(e.name)}">Find ${esc(e.name.replace(/\s*\(.*\)$/, ''))} models →</button></span>
           </div>
         </div>`;
     }
     $('#radarBody').innerHTML = html + '<p class="hint">“List by” leaves time to print, photograph and post before the day (about 4 weeks for gifting events, 8 for Christmas). Bank holidays from gov.uk; lunar festival dates are approximate.</p>';
     document.querySelectorAll('[data-event]').forEach((b) => b.onclick = () => {
       this.filter = b.dataset.event; this.tab = 'ideas'; store.set('radarTab', 'ideas'); this.draw();
+    });
+    document.querySelectorAll('[data-findfor]').forEach((b) => b.onclick = () => {
+      const name = b.dataset.findfor.replace(/\s*\(.*\)$/, '');
+      openDiscover(name.replace(/[’']s\b/g, '').toLowerCase(), { occasion: b.dataset.findfor });
     });
   },
 
@@ -190,9 +197,61 @@ const RadarPage = {
           <p class="idea-desc">${esc(t.why)}</p>
           <p class="muted">${esc(t.printNotes)}</p>
           <div class="sources">${t.sources.slice(0, 3).map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)} ↗</a>`).join('')}</div>
+          ${t.printable ? matchStrip(searchFor(t), null, t.name) : ''}
         </div>`).join('');
     };
     $('#radarBody').innerHTML = section('UK', '🇬🇧 United Kingdom') + section('Worldwide', '🌍 Worldwide') +
       `<p class="hint">Found by Claude’s web search each morning (Etsy, eBay, Amazon, social media and news), UK first. Sales figures from marketplaces are indications, not exact counts.</p>`;
+    loadMatches();
   },
 };
+
+
+// ---------- Matching models (Trend Radar → Discover) ----------
+// A short search phrase for an idea or trending product: the research's own "search" when it
+// has one, otherwise the title boiled down to its main words.
+function searchFor(x) {
+  if (x.search) return x.search;
+  const stop = new Set(['personalised', 'personalized', 'custom', 'set', 'of', 'the', 'and', 'with', 'for', 'a', 'an', 'in', 'gift', 'gifts', '3d', 'printed', 'print', 'mini', 'kit']);
+  return String(x.title || x.name || '').toLowerCase().replace(/\(.*?\)|[^a-z0-9 ]+/g, ' ')
+    .split(/\s+/).filter((w) => w && !stop.has(w)).slice(0, 3).join(' ');
+}
+
+// Opens Discover with a search filled in, remembering which idea / hot date it's for so a
+// product saved from it keeps that link.
+function openDiscover(q, context = {}) {
+  store.set('discoverContext', { ...context, at: Date.now() });
+  DiscoverPage.setOpts({ q, sellable: true, sort: 'popular' });
+  location.hash = '#/discover';
+}
+
+function matchStrip(q, occasion, idea) {
+  if (!q) return '';
+  return `<div class="match" data-q="${esc(q)}" data-occasion="${esc(occasion || '')}" data-idea="${esc(idea || '')}">
+    <div class="match-head"><span>Models you can sell</span><button class="linkbtn" data-more>More models →</button></div>
+    <div class="match-row"><span class="sk match-sk"></span><span class="sk match-sk"></span><span class="sk match-sk"></span></div></div>`;
+}
+
+// Fills each strip when it scrolls into view (the home PC caches searches for 10 minutes).
+function loadMatches() {
+  const strips = document.querySelectorAll('.match:not([data-loaded])');
+  const ctx = (el) => ({ occasion: el.dataset.occasion || null, idea: el.dataset.idea || null });
+  const fill = async (el) => {
+    el.dataset.loaded = '1';
+    el.querySelector('[data-more]').onclick = () => openDiscover(el.dataset.q, ctx(el));
+    let d;
+    try { d = await Monitor.get(`/api/discover?${new URLSearchParams({ q: el.dataset.q, sellable: '1', sort: 'popular' })}`); }
+    catch { el.querySelector('.match-row').innerHTML = '<span class="muted">Couldn’t search right now.</span>'; return; }
+    const row = el.querySelector('.match-row');
+    if (!d.available) { row.innerHTML = '<span class="muted">Connect Thingiverse to see matching models (Business → Discover).</span>'; return; }
+    const items = d.items.slice(0, 4);
+    row.innerHTML = items.length ? items.map((m) => `
+      <a class="match-item" href="#/discover/${m.id}" data-id="${m.id}">
+        <img src="${esc(m.thumbnail || '')}" alt="" loading="lazy" referrerpolicy="no-referrer"><span>${esc(m.name)}</span></a>`).join('')
+      : '<span class="muted">No matching models with a sellable licence — try “More models”.</span>';
+    row.querySelectorAll('[data-id]').forEach((a) => a.addEventListener('click', () => store.set('discoverContext', { ...ctx(el), at: Date.now() })));
+  };
+  if (!('IntersectionObserver' in window)) { strips.forEach(fill); return; }
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) { io.unobserve(e.target); fill(e.target); } }), { rootMargin: '200px' });
+  strips.forEach((el) => io.observe(el));
+}
