@@ -1,12 +1,17 @@
 // Bump VERSION on every deploy so phones pick up the new files.
-const VERSION = 'v9d-31';
+const VERSION = 'v9d-37';
 const SHELL = [
   './',
   'index.html',
+  'demo.js',
+  'demo-camera.html',
   'styles.css',
   'app.js',
   'icons.js',
   'costs.js',
+  'fees.js',
+  'products.js',
+  'discover.js',
   'maint-help.js',
   'maint.js',
   'radar.js',
@@ -23,6 +28,10 @@ const SHELL = [
   'icons/bg-logo.jpg',
   'icons/icon-512.png',
   'icons/logo-banner.png',
+  'icons/demo/benchy.png',
+  'icons/demo/blocks.png',
+  'icons/demo/block.png',
+  'icons/demo/stand.png',
 ];
 
 self.addEventListener('install', (e) => {

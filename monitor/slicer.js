@@ -107,7 +107,9 @@ function unzip(buf, wanted) {
     if (wanted(name)) {
       const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
       const raw = buf.subarray(start, start + size);
-      out[name] = method === 8 ? zlib.inflateRawSync(raw) : raw;
+      // Cap the unpacked size so a booby-trapped file ("zip bomb") can't exhaust memory.
+      try { out[name] = method === 8 ? zlib.inflateRawSync(raw, { maxOutputLength: 300 * 1024 * 1024 }) : raw; }
+      catch { throw new Error('This 3MF is too large or damaged to open'); }
     }
     p += 46 + nameLen + extraLen + commentLen;
   }
@@ -187,6 +189,39 @@ class Slicer {
   }
   get(id) { return this.jobs.get(id) || null; }
   public(job) { return { ...job, result: job.result && { ...job.result, gcode: undefined } }; }
+
+  modelPath(job) { return path.join(this.dir, job.id, 'model' + job.ext); }
+
+  // A new job from a saved model (a product), with its settings filled in.
+  fromFile(file, info, productId) {
+    const id = crypto.randomBytes(6).toString('hex');
+    fs.mkdirSync(path.join(this.dir, id), { recursive: true });
+    fs.copyFileSync(file, path.join(this.dir, id, 'model' + info.ext));
+    const job = { id, name: info.name, ext: info.ext, size: fs.statSync(file).size, created: Date.now(), state: 'uploaded',
+      colours: info.colours, plates: info.plates, settings: info.settings, productId, source: info.source || null };
+    this.save(job);
+    return job;
+  }
+
+  // A new job from a downloaded model (Discover). source: where it came from and its licence.
+  fromBuffer(buf, name, ext, source) {
+    if (!['.stl', '.3mf'].includes(ext)) throw new Error('Only STL and 3MF files');
+    if (buf.length > MAX_UPLOAD) throw new Error('File is larger than 200 MB');
+    const looksRight = ext === '.3mf' ? buf.subarray(0, 2).toString() === 'PK' : buf.length > 84;
+    if (!looksRight) throw new Error('That doesn’t look like a valid ' + ext.slice(1).toUpperCase() + ' file');
+    const id = crypto.randomBytes(6).toString('hex');
+    const dir = path.join(this.dir, id);
+    fs.mkdirSync(dir, { recursive: true });
+    const model = path.join(dir, 'model' + ext);
+    fs.writeFileSync(model, buf);
+    try {
+      const info = ext === '.3mf' ? inspect3mf(model) : { colours: [{ colour: '#FFFFFF', type: '', used: true }], plates: 1 };
+      const job = { id, name, ext, size: buf.length, created: Date.now(), state: 'uploaded', ...info, source };
+      this.save(job);
+      this.log(`Slicer: downloaded ${name}${ext} from ${source?.site || 'the web'} (${Math.round(buf.length / 1024)} KB)`);
+      return job;
+    } catch (err) { fs.rmSync(dir, { recursive: true, force: true }); throw err; }
+  }
 
   // Streams an upload to disk. name = original file name (.stl or .3mf).
   upload(req, name) {
@@ -331,6 +366,9 @@ class Slicer {
       perColour,
     };
   }
+
+  // Drops jobs whose folder was removed (housekeeping).
+  forgetMissing() { for (const id of this.jobs.keys()) if (!fs.existsSync(path.join(this.dir, id))) this.jobs.delete(id); }
 
   cleanup() {
     for (const [id, job] of this.jobs) {

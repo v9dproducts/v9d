@@ -11,16 +11,25 @@ const HomePage = {
           <h1>Dashboard</h1></div>
         <img class="home-logo" src="icons/logo-banner.png" alt="V9D — Think. Make. V9D.">
       </div>
-      <div class="widgets" id="widgets"><p class="banner">Loading…</p></div>`;
+      <div class="widgets" id="widgets">${skeleton('widgets')}</div>`;
+    const list = await Printers.load();
+    // Remembered data first (instant), then fresh data, then a quiet refresh every few seconds.
+    const PATHS = ['/api/status', '/api/power', '/api/maintenance', '/api/trends'];
+    const remembered = PATHS.map((p) => Monitor.cached(p));
+    if (remembered[0]) this.draw(this.shape(remembered, list));
+    clearTimeout(this.timer);
+    const refresh = async () => {
+      const fresh = await Promise.all(PATHS.map((p) => Monitor.get(p).catch(() => null)));
+      if (currentRoute() !== '') return; // navigated away meanwhile
+      if (!fresh[3]?.research && !this.snapshot) this.snapshot = await fetch('trends-snapshot.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+      this.draw(this.shape(fresh, list));
+      this.timer = setTimeout(refresh, 5000);
+    };
+    await refresh();
+  },
 
-    const get = (path) => Monitor.get(path).catch(() => null);
-    const [status, power, maint, trends, list] = await Promise.all([
-      get('/api/status'), get('/api/power'), get('/api/maintenance'), get('/api/trends'), Printers.load(),
-    ]);
-    if (location.hash.replace(/^#\/?/, '') !== '') return; // navigated away meanwhile
-    let research = trends?.research;
-    if (!research) research = await fetch('trends-snapshot.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
-    this.draw({ status, power, maint, trends, research, list });
+  shape([status, power, maint, trends], list) {
+    return { status, power, maint, trends, research: trends?.research || this.snapshot || null, list };
   },
 
   draw({ status, power, maint, trends, research, list }) {
@@ -58,7 +67,7 @@ const HomePage = {
     const watts = power ? Object.values(power.printers).reduce((a, x) => a + (x.watts || 0), 0) : null;
     const todayWh = power ? Object.values(power.printers).reduce((a, x) => a + (x.todayWh || 0), 0) : 0;
     const powerHtml = `<a class="w" href="#/power"><span class="w-ico">${icon('bolt', 26)}</span>
-      <span class="w-big">${watts === null ? '—' : Math.round(watts) + ' W'}</span>
+      <span class="w-big" data-tween>${watts === null ? '—' : Math.round(watts) + ' W'}</span>
       <span class="w-sub">${watts === null ? 'Power' : `${fmt.money(Prices.energy(todayWh, p))} so far today`}</span></a>`;
 
     const items = maint ? Object.values(maint.printers).flatMap((pr) => pr.items.map((i) => ({ ...i, printer: pr.name }))) : [];
@@ -81,21 +90,69 @@ const HomePage = {
       <span class="w-col"><span class="w-label">Idea of the day</span><b>${esc(idea.title)}</b>
       <span class="w-sub">Sells ${esc(idea.suggestedPrice.split(' (')[0])} · costs ~${fmt.money(Prices.material(idea.estGrams, p) + Prices.energy(idea.estHours * 225, p))}</span></span></a>` : '';
 
-    $('#widgets').innerHTML = (offline ? '<p class="banner">Can’t reach the V9D monitor — showing what’s available. Check Tailscale is on.</p>' : '') +
-      heroHtml + otherHtml + powerHtml + maintHtml + dateHtml + ideaHtml;
+    if (!$('#widgets')) return;
+    patch($('#widgets'), todayCard({ status, maint, trends, list }) + (offline ? '<p class="banner">Can’t reach the V9D monitor — showing what’s available. Check Tailscale is on.</p>' : '') +
+      heroHtml + otherHtml + powerHtml + maintHtml + dateHtml + ideaHtml);
 
     // Tapping a printer widget opens the dashboard on that printer.
-    document.querySelectorAll('[data-printer]').forEach((a) => a.addEventListener('click', () => {
+    document.querySelectorAll('[data-printer]').forEach((a) => a.onclick = () => {
       const i = list.findIndex((x) => x.id === a.dataset.printer);
       if (i >= 0) store.set('dashIndex', i);
-    }));
+    });
   },
 };
+
+// "Today": what's happening and what needs doing, in time order — printers finishing, plates to
+// clear, free printers, maintenance due and listing deadlines. Each line links to where you act.
+function todayCard({ status, maint, trends, list }) {
+  if (!status) return '';
+  const rows = []; // { rank, at (sort time), when, tone, text, sub, href, printer }
+  const now = Date.now();
+  for (const p of list) {
+    const s = status.printers?.[p.id];
+    if (!s) continue;
+    const file = s.file ? `<b>${esc(fmt.file(s.file))}</b>` : 'a print';
+    const go = { href: '#/printers', printer: p.id };
+    if (s.state === 'error') rows.push({ rank: 0, when: 'Now', tone: 'bad', text: `${esc(p.name)} stopped with an error`, sub: esc(s.message || 'Check the printer'), ...go });
+    else if (s.state === 'paused') rows.push({ rank: 0, when: 'Now', tone: 'warn', text: `${esc(p.name)} is paused`, sub: `${file} · ${s.progress}% — check it and resume`, ...go });
+    else if (s.state === 'printing') {
+      rows.push({ rank: 2, at: now, when: 'Now', tone: 'busy', text: `${esc(p.name)} printing ${file}`, sub: `${s.progress}%${s.timeLeft ? ` · ${fmt.hours(s.timeLeft)} left` : ''}`, ...go });
+      if (s.timeLeft) rows.push({ rank: 3, at: now + s.timeLeft * 1000, when: finishTime(s.timeLeft), tone: 'plain', text: `${esc(p.name)} finishes`, sub: 'Clear the plate for the next print', ...go });
+    } else if (s.state === 'complete') rows.push({ rank: 1, when: 'Done', tone: 'ok', text: `${esc(p.name)} finished ${file}`, sub: 'Clear the plate — then it’s free for the next print', ...go });
+    else if (s.state === 'idle' || s.state === 'cancelled') rows.push({ rank: 4, when: 'Free', tone: 'free', text: `${esc(p.name)} is free`, sub: 'Print something — Products or a new file', href: '#/products' });
+  }
+  const due = maint ? Object.values(maint.printers).flatMap((pr) => pr.items.filter((i) => i.status === 'due').map((i) => `${i.name} (${pr.name})`)) : [];
+  if (due.length) rows.push({ rank: 5, when: 'Due', tone: 'warn', text: `Maintenance: ${esc(due.slice(0, 2).join(', '))}${due.length > 2 ? ` +${due.length - 2} more` : ''}`, sub: 'Open the guide and log it when done', href: '#/maintenance' });
+  const today = new Date().toISOString().slice(0, 10);
+  const soon = (trends?.hotDates || []).find((d) => d.listBy >= today && (new Date(d.listBy) - new Date(today)) / 864e5 <= 14)
+    || (trends?.hotDates || []).find((d) => d.listBy < today && d.daysAway <= 7);
+  if (soon) {
+    const days = Math.round((new Date(soon.listBy) - new Date(today)) / 864e5);
+    const name = esc(soon.name.replace(/\s*\(.*\)$/, ''));
+    rows.push(days >= 0
+      ? { rank: 6, when: days === 0 ? 'Today' : `${days} d`, tone: days <= 3 ? 'warn' : 'plain', text: days === 0 ? `Last day to list ${name} items` : `List ${name} items by ${fmt.date(soon.listBy).replace(/ \d{4}$/, '')}`, sub: esc(soon.hint || 'See print ideas for it'), href: '#/radar' }
+      : { rank: 6, when: `${soon.daysAway} d`, tone: 'plain', text: `${name} in ${soon.daysAway} days`, sub: 'Too late to post — local and last-minute sales', href: '#/radar' });
+  }
+  if (!rows.length) return '';
+  rows.sort((a, b) => a.rank - b.rank || (a.at || 0) - (b.at || 0));
+  return `
+    <div class="w w-today">
+      <div class="today-head"><b>Today</b></div>
+      ${rows.map((r) => `
+        <a class="today-row" href="${r.href}" ${r.printer ? `data-printer="${esc(r.printer)}"` : ''}>
+          <span class="today-when ${r.tone}" data-tween>${r.when}</span>
+          <span class="today-dot ${r.tone}"></span>
+          <span class="w-col"><span class="today-text">${r.text}</span><span class="w-sub">${r.sub}</span></span>
+          <span class="chev" aria-hidden="true">›</span>
+        </a>`).join('')}
+    </div>`;
+}
 
 const BusinessPage = {
   render() {
     setHeader('Business', { tabRoot: true });
     const tiles = [
+      ['#/products', 'tag', 'Products', 'What you sell: print again, cost, price, profit'],
       ['#/usage', 'chart', 'Usage & Costs', 'Material and electricity per print'],
       ['#/power', 'bolt', 'Live Power', 'What the printers draw right now'],
       ['#/radar', 'trend', 'Trend Radar', 'What’s selling, hot dates, print ideas'],
@@ -117,10 +174,26 @@ const SettingsPage = {
         <span class="w-col"><b>Notifications</b><span class="w-sub">Print alerts, maintenance reminders, tests</span></span><span class="chev" aria-hidden="true">›</span></button>
       <h3 class="day">Prices</h3>
       ${calc.html}
+      <h3 class="day">Selling</h3>
+      <div class="panel toggles">
+        <label class="field"><span>Target margin for suggested prices: <b id="mVal">${Fees.settings().margin}%</b></span>
+          <input type="range" id="sMargin" min="20" max="80" step="5" value="${Fees.settings().margin}" class="slider"></label>
+        <label class="field"><span>Printer time <small class="muted">— wear, failed prints, your time; added to product costs</small></span>
+          <span class="affix"><i>£</i><input type="number" id="sHourly" inputmode="decimal" step="0.25" min="0" max="20" value="${Fees.settings().hourly.toFixed(2)}"><i>per hour</i></span></label>
+        <label class="check"><input type="checkbox" id="sEbay" ${Fees.settings().ebayBusiness ? 'checked' : ''}><span>eBay business seller <small class="muted">about 12.8% + 30p per order; private sellers pay no fees on most UK sales</small></span></label>
+        <label class="check"><input type="checkbox" id="sVat" ${Fees.settings().vatRegistered ? 'checked' : ''}><span>VAT registered <small class="muted">prices include 20% VAT you pay; VAT on platform fees is reclaimed</small></span></label>
+      </div>
+      <h3 class="day">Home PC</h3>
+      <a class="hub-row" href="#/storage"><span class="hub-icon">${icon('sliders', 26)}</span>
+        <span class="w-col"><b>Storage</b><span class="w-sub">Free space, automatic clean-up</span></span><span class="chev" aria-hidden="true">›</span></a>
       <h3 class="day">Printers</h3>
       <a class="hub-row" href="#/printers/manage"><span class="hub-icon">${icon('printer', 26)}</span>
         <span class="w-col"><b>Manage printers</b><span class="w-sub">Add, edit, export or import printers</span></span><span class="chev" aria-hidden="true">›</span></a>`;
     calc.bind();
     $('#setAlerts').onclick = () => Alerts.open();
+    $('#sMargin').oninput = (e) => { $('#mVal').textContent = `${e.target.value}%`; Fees.set({ margin: +e.target.value }); };
+    $('#sEbay').onchange = (e) => Fees.set({ ebayBusiness: e.target.checked });
+    $('#sHourly').oninput = (e) => { const v = Number(e.target.value); if (v >= 0 && v <= 20) Fees.set({ hourly: v }); };
+    $('#sVat').onchange = (e) => Fees.set({ vatRegistered: e.target.checked });
   },
 };

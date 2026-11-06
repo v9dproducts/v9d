@@ -13,7 +13,9 @@ const RadarPage = {
   async render() {
     setHeader('Trend Radar', { back: true });
     this.tab = store.get('radarTab', 'ideas');
-    $('#view').innerHTML = '<p class="banner">Loading…</p>';
+    $('#view').innerHTML = skeleton();
+    const remembered = Monitor.cached('/api/trends');
+    if (remembered?.research) { this.data = remembered; this.snapshot = null; this.draw(); }
     try {
       this.data = await Monitor.get('/api/trends');
     } catch (e) {
@@ -29,7 +31,8 @@ const RadarPage = {
         this.data.research = snap;
       } catch {}
     }
-    if (!this.data.research && this.tab !== 'dates') this.tab = 'dates';
+    if (!this.data.research && this.tab !== 'dates' && this.tab !== 'models') this.tab = 'dates';
+    if (currentRoute() !== 'radar') return;
     this.draw();
     if (this.data.running) this.poll();
   },
@@ -51,7 +54,7 @@ const RadarPage = {
       : this.snapshot ? `One-off snapshot · researched ${fmt.date(new Date(this.snapshot.date))}`
       : d.updatedAt ? `Updated ${fmt.date(d.updatedAt)} ${fmt.time(d.updatedAt)}${d.cost?.usd ? ` · cost ~${approxGBP(d.cost.usd * USD_TO_GBP)}` : ''} · next update 06:00 UK`
       : d.hasKey ? 'First update runs shortly.' : '';
-    $('#view').innerHTML = `
+    patch($('#view'), `
       ${d.offline ? `<p class="banner">${/404/.test(d.offline)
         ? 'Hot dates need the latest V9D monitor on the home PC — run the update there.'
         : 'Can’t reach the V9D monitor — check Tailscale is on.'} The snapshot below works anyway.</p>` : ''}
@@ -61,17 +64,18 @@ const RadarPage = {
       <div class="radar-status"><span class="muted">${esc(status)}</span>
         ${d.hasKey && !d.running ? '<button class="linkbtn" id="radarRefresh">Refresh now</button>' : ''}</div>
       ${r ? `<div class="hero"><div class="hero-label">Today’s focus</div><p class="radar-summary">${esc(r.summary)}</p></div>` : ''}
-      <div class="seg">
-        ${[['ideas', 'Print ideas'], ['dates', 'Hot dates'], ['trending', 'Trending']]
+      <div class="seg radar-tabs">
+        ${[['ideas', 'Ideas'], ['models', 'Models'], ['dates', 'Hot dates'], ['trending', 'Trending']]
           .map(([k, l]) => `<button class="${this.tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}
       </div>
-      <div id="radarBody"></div>`;
-    document.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => {
+      <div id="radarBody"></div>`);
+    document.querySelectorAll('#view [data-tab]').forEach((b) => b.onclick = () => {
       this.tab = b.dataset.tab; store.set('radarTab', this.tab); this.draw();
     });
     const refresh = $('#radarRefresh');
     if (refresh) refresh.onclick = () => this.refresh();
-    if (this.tab === 'dates') this.drawDates();
+    if (this.tab === 'models') DiscoverPage.mount($('#radarBody'));
+    else if (this.tab === 'dates') this.drawDates();
     else if (this.tab === 'trending') this.drawTrending();
     else this.drawIdeas();
   },
@@ -133,10 +137,12 @@ const RadarPage = {
               <span>Difficulty</span><b>${esc(i.difficulty)}</b>
             </div>
             <details><summary>Why & design source</summary><p class="muted">${esc(i.why)}</p><p class="muted">Design: ${esc(i.designSource)}</p></details>
+            ${matchStrip(searchFor(i), i.forEvent, i.title)}
           </div>`;
       }).join('') || '<div class="empty">No ideas for this filter.</div>'}
       <p class="hint">Ideas are researched by Claude each morning and checked against your printers’ size and materials. Cost uses your Usage & Costs prices. Always check a design’s licence allows selling prints.</p>`;
     document.querySelectorAll('[data-ifilter]').forEach((b) => b.onclick = () => { this.filter = b.dataset.ifilter; this.drawIdeas(); });
+    loadMatches();
   },
 
   drawDates() {
@@ -163,13 +169,18 @@ const RadarPage = {
             <div class="muted">${e.daysAway === 0 ? 'Today' : `in ${e.daysAway} days`} · ${esc(e.kind.replace('-', ' '))}</div>
             ${listBy}
             <div class="muted">${esc(e.hint)}</div>
-            ${n ? `<button class="linkbtn" data-event="${esc(e.name)}">${n} print idea${n > 1 ? 's' : ''} →</button>` : ''}
+            <span class="hd-actions">${n ? `<button class="linkbtn" data-event="${esc(e.name)}">${n} print idea${n > 1 ? 's' : ''} →</button>` : ''}
+              <button class="linkbtn" data-findfor="${esc(e.name)}">Find ${esc(e.name.replace(/\s*\(.*\)$/, ''))} models →</button></span>
           </div>
         </div>`;
     }
     $('#radarBody').innerHTML = html + '<p class="hint">“List by” leaves time to print, photograph and post before the day (about 4 weeks for gifting events, 8 for Christmas). Bank holidays from gov.uk; lunar festival dates are approximate.</p>';
     document.querySelectorAll('[data-event]').forEach((b) => b.onclick = () => {
       this.filter = b.dataset.event; this.tab = 'ideas'; store.set('radarTab', 'ideas'); this.draw();
+    });
+    document.querySelectorAll('[data-findfor]').forEach((b) => b.onclick = () => {
+      const name = b.dataset.findfor.replace(/\s*\(.*\)$/, '');
+      openDiscover(name.replace(/[’']s\b/g, '').toLowerCase(), { occasion: b.dataset.findfor });
     });
   },
 
@@ -186,10 +197,63 @@ const RadarPage = {
           <div class="muted">${esc(t.category)} · ${esc(t.priceRange)}</div>
           <p class="idea-desc">${esc(t.why)}</p>
           <p class="muted">${esc(t.printNotes)}</p>
-          <div class="sources">${t.sources.slice(0, 3).map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)} ↗</a>`).join('')}</div>
+          <div class="sources">${t.sources.slice(0, 3).map((s) => `<a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(s.title)} ↗</a>`).join('')}</div>
+          ${t.printable ? matchStrip(searchFor(t), null, t.name) : ''}
         </div>`).join('');
     };
     $('#radarBody').innerHTML = section('UK', '🇬🇧 United Kingdom') + section('Worldwide', '🌍 Worldwide') +
       `<p class="hint">Found by Claude’s web search each morning (Etsy, eBay, Amazon, social media and news), UK first. Sales figures from marketplaces are indications, not exact counts.</p>`;
+    loadMatches();
   },
 };
+
+
+// ---------- Matching models (Trend Radar → Discover) ----------
+// A short search phrase for an idea or trending product: the research's own "search" when it
+// has one, otherwise the title boiled down to its main words.
+function searchFor(x) {
+  if (x.search) return x.search;
+  const stop = new Set(['personalised', 'personalized', 'custom', 'set', 'of', 'the', 'and', 'with', 'for', 'a', 'an', 'in', 'gift', 'gifts', '3d', 'printed', 'print', 'mini', 'kit']);
+  return String(x.title || x.name || '').toLowerCase().replace(/\(.*?\)|[^a-z0-9 ]+/g, ' ')
+    .split(/\s+/).filter((w) => w && !stop.has(w)).slice(0, 3).join(' ');
+}
+
+// Opens Discover with a search filled in, remembering which idea / hot date it's for so a
+// product saved from it keeps that link.
+function openDiscover(q, context = {}) {
+  store.set('discoverContext', { ...context, at: Date.now() });
+  DiscoverPage.setOpts({ q, sellable: true, sort: 'popular' });
+  store.set('radarTab', 'models');
+  if (currentRoute() === 'radar') RadarPage.render(); else location.hash = '#/radar';
+}
+
+function matchStrip(q, occasion, idea) {
+  if (!q) return '';
+  return `<div class="match" data-q="${esc(q)}" data-occasion="${esc(occasion || '')}" data-idea="${esc(idea || '')}">
+    <div class="match-head"><span>Models you can sell</span><button class="linkbtn" data-more>More models →</button></div>
+    <div class="match-row"><span class="sk match-sk"></span><span class="sk match-sk"></span><span class="sk match-sk"></span></div></div>`;
+}
+
+// Fills each strip when it scrolls into view (the home PC caches searches for 10 minutes).
+function loadMatches() {
+  const strips = document.querySelectorAll('.match:not([data-loaded])');
+  const ctx = (el) => ({ occasion: el.dataset.occasion || null, idea: el.dataset.idea || null });
+  const fill = async (el) => {
+    el.dataset.loaded = '1';
+    el.querySelector('[data-more]').onclick = () => openDiscover(el.dataset.q, ctx(el));
+    let d;
+    try { d = await Monitor.get(`/api/discover?${new URLSearchParams({ q: el.dataset.q, sellable: '1', sort: 'popular', limit: '8' })}`); }
+    catch { el.querySelector('.match-row').innerHTML = '<span class="muted">Couldn’t search right now.</span>'; return; }
+    const row = el.querySelector('.match-row');
+    if (!d.available) { row.innerHTML = '<span class="muted">Connect Thingiverse to see matching models (Business → Discover).</span>'; return; }
+    const items = d.items.slice(0, 4);
+    row.innerHTML = items.length ? items.map((m) => `
+      <a class="match-item" href="#/discover/${m.id}" data-id="${m.id}">
+        <img src="${esc(m.thumbnail || '')}" alt="" loading="lazy" referrerpolicy="no-referrer"><span>${esc(m.name)}</span></a>`).join('')
+      : '<span class="muted">No matching models with a sellable licence — try “More models”.</span>';
+    row.querySelectorAll('[data-id]').forEach((a) => a.addEventListener('click', () => store.set('discoverContext', { ...ctx(el), at: Date.now() })));
+  };
+  if (!('IntersectionObserver' in window)) { strips.forEach(fill); return; }
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) { io.unobserve(e.target); fill(e.target); } }), { rootMargin: '200px' });
+  strips.forEach((el) => io.observe(el));
+}

@@ -13,6 +13,8 @@ const ICON_PATHS = {
   bell: 'M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15z M10 20a2 2 0 0 0 4 0',
   bulb: 'M9 18h6 M10 21h4 M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z',
   calendar: 'M4 6h16v15H4z M4 10h16 M8 3v4 M16 3v4',
+  plus: 'M12 5v14 M5 12h14',
+  tag: 'M3 12V4h8l10 10-8 8z M7.5 7.5h.01',
 };
 
 function icon(name, size = 24) {

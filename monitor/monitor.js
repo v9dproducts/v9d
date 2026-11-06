@@ -14,6 +14,9 @@ const dash = require('./k2dash');
 const k1 = require('./k1dash');
 const DASH = { moonraker: dash, creality: k1 }; // full dashboard module per printer type
 const { Slicer } = require('./slicer');
+const { Products } = require('./products');
+const { Discover } = require('./discover');
+const { Housekeeping } = require('./housekeeping');
 
 const DATA = path.join(__dirname, 'data');
 fs.mkdirSync(DATA, { recursive: true });
@@ -74,6 +77,8 @@ usage.onSessionEnd = (id) => setTimeout(() => syncHistory(id), 20000);
 const maintenance = new Maintenance(DATA, usage, (...a) => notify(...a), log);
 const trends = new Trends(DATA, config, log);
 const slicer = new Slicer(DATA, log);
+const products = new Products(DATA, slicer, log);
+const discover = new Discover(config, slicer, log);
 
 // Motors stay energised for a while after a print, then the firmware switches them off.
 function holding(id, state) {
@@ -326,6 +331,30 @@ function send(res, code, body, origin) {
   res.end(body === undefined ? '' : JSON.stringify(body));
 }
 
+// Network failures reaching a printer read as "fetch failed"; say what it means.
+const friendly = (err) => (/fetch failed|ECONNREFUSED|EHOSTUNREACH|timeout|aborted/i.test(err.message) ? 'Can’t reach the printer — is it switched on and connected?' : err.message);
+
+// ---------- Who may send commands ----------
+// Browsers attach an Origin header to cross-site requests, and a page on any website can send
+// a plain POST without asking first. So commands (POST) are only accepted from V9D's own pages:
+// the published app, this monitor's own address(es), or no browser at all (no Origin header).
+const trustedOrigins = new Set(config.allowedOrigins);
+try { // this PC's Tailscale name, e.g. https://v9d.tail09fd44.ts.net (and the camera port)
+  require('child_process').execFile('tailscale', ['status', '--json'], { timeout: 10000 }, (err, out) => {
+    const name = !err && JSON.parse(out).Self?.DNSName?.replace(/\.$/, '');
+    if (name) for (const o of [`https://${name}`, `https://${name}:8443`]) trustedOrigins.add(o);
+  });
+} catch {}
+function trustedOrigin(req) {
+  const o = req.headers.origin;
+  if (!o) return true;
+  if (trustedOrigins.has(o)) return true;
+  try {
+    const host = new URL(o).host;
+    return [req.headers.host, req.headers['x-forwarded-host']].includes(host);
+  } catch { return false; }
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -340,11 +369,11 @@ function readBody(req) {
 // (always current), falling back to the copy next to this folder.
 const APP_URL = config.printersUrl.replace(/printers\.json$/, '');
 // Explicit list — add new app files here. Nothing in monitor/ (keys, data) is ever served.
-const APP_FILES = new Set(['index.html', 'app.js', 'costs.js', 'maint.js', 'maint-help.js', 'radar.js', 'dash.js', 'print.js', 'home.js', 'icons.js',
+const APP_FILES = new Set(['index.html', 'app.js', 'costs.js', 'maint.js', 'maint-help.js', 'radar.js', 'dash.js', 'print.js', 'products.js', 'fees.js', 'discover.js', 'home.js', 'demo.js', 'demo-camera.html', 'icons.js',
   'styles.css', 'sw.js', 'manifest.webmanifest', 'printers.json', 'trends-snapshot.json']);
 const appFileFor = (pathname) => {
   const f = pathname === '/' ? 'index.html' : pathname.slice(1);
-  return APP_FILES.has(f) || /^icons\/[\w-]+\.(png|jpg)$/.test(f) ? f : null;
+  return APP_FILES.has(f) || /^icons\/(demo\/)?[\w-]+\.(png|jpg)$/.test(f) ? f : null;
 };
 const TYPES = { html: 'text/html', js: 'text/javascript', css: 'text/css', json: 'application/json', webmanifest: 'application/manifest+json', png: 'image/png', jpg: 'image/jpeg' };
 const appCache = new Map();
@@ -371,6 +400,10 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
     if (req.method === 'OPTIONS') return send(res, 204, undefined, origin);
+    if (req.method === 'POST') {
+      if (!trustedOrigin(req)) { log(`Blocked a command from ${String(origin).slice(0, 80)}`); return send(res, 403, { error: 'Not allowed from this page' }); }
+      if (!/^application\/(json|octet-stream)\b/i.test(req.headers['content-type'] || '')) return send(res, 415, { error: 'Send JSON' }, origin);
+    }
 
     if (req.method === 'GET' && url.pathname === '/api/status') {
       const out = {};
@@ -445,6 +478,72 @@ http.createServer(async (req, res) => {
       }
       return send(res, 404, { error: 'not found' }, origin);
     }
+    // ---------- Discover (Thingiverse) ----------
+    if (req.method === 'GET' && url.pathname === '/api/discover') {
+      if (!discover.available()) return send(res, 200, { available: false, items: [] }, origin);
+      try {
+        const q = url.searchParams;
+        return send(res, 200, { available: true, ...(await discover.list({ q: q.get('q') || '', sort: q.get('sort') || 'trending', sellable: q.get('sellable') === '1', page: Number(q.get('page')) || 1, limit: Number(q.get('limit')) || 30 })) }, origin);
+      } catch (err) { return send(res, 502, { error: err.message }, origin); }
+    }
+    const dm = url.pathname.match(/^\/api\/discover\/thing\/(\d{1,12})(\/print)?$/);
+    if (dm) {
+      try {
+        if (req.method === 'GET' && !dm[2]) return send(res, 200, await discover.thing(dm[1]), origin);
+        if (req.method === 'POST' && dm[2]) { const b = await readBody(req); return send(res, 200, slicer.public(await discover.toJob(dm[1], b.file, b)), origin); }
+      } catch (err) { return send(res, 400, { error: err.message }, origin); }
+    }
+
+    // ---------- Storage ----------
+    if (req.method === 'GET' && url.pathname === '/api/storage') return send(res, 200, housekeeping.report(), origin);
+    if (req.method === 'POST' && url.pathname === '/api/storage/clean') return send(res, 200, housekeeping.run({ deep: true }), origin);
+
+    // ---------- Products ----------
+    if (req.method === 'GET' && url.pathname === '/api/products') return send(res, 200, { products: products.all() }, origin);
+    if (req.method === 'POST' && url.pathname === '/api/products') {
+      try {
+        const body = await readBody(req);
+        const job = slicer.get(body.fromJob);
+        if (!job) throw new Error('This slice has expired — slice the file again');
+        const p = products.create(job, body);
+        if (!job.productId) { job.productId = p.id; slicer.save(job); }
+        return send(res, 200, p, origin);
+      } catch (err) { return send(res, 400, { error: err.message }, origin); }
+    }
+    const prm = url.pathname.match(/^\/api\/products\/([a-f0-9]{12})(\/[a-z-]+)?$/);
+    if (prm) {
+      const p = products.get(prm[1]);
+      if (!p) return send(res, 404, { error: 'This product no longer exists' }, origin);
+      const sub = prm[2] || '';
+      if (req.method === 'GET' && sub === '') return send(res, 200, p, origin);
+      if (req.method === 'GET' && sub === '/preview') {
+        const f = products.preview(p);
+        if (!f) return send(res, 404, { error: 'no preview' }, origin);
+        res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=60', ...(origin && config.allowedOrigins.includes(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) });
+        return res.end(fs.readFileSync(f));
+      }
+      try {
+        if (req.method === 'POST' && sub === '') return send(res, 200, products.edit(p, await readBody(req)), origin);
+        if (req.method === 'POST' && sub === '/delete') { products.remove(p); return send(res, 200, { ok: true }, origin); }
+        if (req.method === 'POST' && sub === '/settings') return send(res, 200, slicer.public(products.toJob(p)), origin);
+        if (req.method === 'POST' && sub === '/from-job') {
+          const job = slicer.get((await readBody(req)).job);
+          if (!job) throw new Error('This slice has expired — slice the file again');
+          return send(res, 200, products.updateFromJob(p, job), origin);
+        }
+        if (req.method === 'POST' && sub === '/print') {
+          const body = await readBody(req);
+          const pr = printers.get(p.result?.printer);
+          if (!pr || !DASH[pr.cfg.type]) throw new Error('That printer isn’t available');
+          const message = await DASH[pr.cfg.type].upload(pr, products.gcodeFile(p), products.fileName(p), { start: body.start === true, plateClear: body.plateClear });
+          if (body.start) products.printed(p);
+          log(`${pr.cfg.name}: product ${p.name} sent from V9D${body.start ? ' and started' : ''}`);
+          return send(res, 200, { ok: true, message, product: p }, origin);
+        }
+      } catch (err) { return send(res, 400, { error: friendly(err) }, origin); }
+      return send(res, 404, { error: 'not found' }, origin);
+    }
+
     // ---------- Slicing (OrcaSlicer on this PC) ----------
     if (req.method === 'GET' && url.pathname === '/api/slice/options') {
       const o = slicer.options(url.searchParams.get('printer'));
@@ -478,7 +577,7 @@ http.createServer(async (req, res) => {
           log(`${p.cfg.name}: ${job.result.file} sent from V9D${body.start ? ' and started' : ''}`);
           return send(res, 200, { ok: true, message }, origin);
         }
-      } catch (err) { return send(res, 400, { error: err.message }, origin); }
+      } catch (err) { return send(res, 400, { error: friendly(err) }, origin); }
       return send(res, 404, { error: 'not found' }, origin);
     }
     if (req.method === 'GET' && url.pathname === '/api/push-key') {
@@ -531,6 +630,7 @@ http.createServer(async (req, res) => {
   }
 }).listen(config.port, '127.0.0.1', () => log(`V9D monitor on http://127.0.0.1:${config.port}`));
 
+const housekeeping = new Housekeeping(DATA, config, { slicer, printers, notify: (...a) => notify(...a), log });
 loadPrinters().then(() => setTimeout(() => { for (const id of printers.keys()) syncHistory(id); }, 10000));
 setInterval(loadPrinters, 10 * 60 * 1000);
 setInterval(() => { for (const id of printers.keys()) syncHistory(id); }, 30 * 60 * 1000);

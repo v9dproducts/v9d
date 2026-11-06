@@ -1,6 +1,9 @@
 // V9D — tiny hash-routed PWA. Pages are listed in ROUTES; the tab bar groups them.
 
 const $ = (sel, root = document) => root.querySelector(sel);
+// Links from outside data (web research, Thingiverse, listings) must be real web links —
+// never "javascript:" or other schemes that would run code when tapped.
+const safeUrl = (u) => (/^https?:\/\//i.test(String(u || '').trim()) ? String(u).trim() : '#');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const store = {
@@ -23,18 +26,104 @@ function setHeader(title, { back = false, backTo, tabRoot = false, actions = '' 
   document.title = title === 'V9D' ? 'V9D' : `${title} · V9D`;
 }
 
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Bottom sheet: slides up over a fading backdrop; swipe it down (or tap outside) to close.
+let sheetTimer = null;
 function openSheet(html) {
-  $('#sheet').innerHTML = html;
-  $('#sheet').hidden = false;
-  $('#sheetBackdrop').hidden = false;
+  const sheet = $('#sheet'), back = $('#sheetBackdrop');
+  clearTimeout(sheetTimer);
+  sheet.innerHTML = html;
+  sheet.style.transform = '';
+  const wasOpen = !sheet.hidden && sheet.classList.contains('show');
+  sheet.hidden = false; back.hidden = false;
+  if (!wasOpen) { sheet.classList.remove('show'); back.classList.remove('show'); void sheet.offsetHeight; }
+  sheet.scrollTop = 0;
+  sheet.classList.add('show'); back.classList.add('show');
 }
 function closeSheet() {
-  $('#sheet').classList.remove('wide');
-  $('#sheet').hidden = true;
-  $('#sheetBackdrop').hidden = true;
-  $('#sheet').innerHTML = '';
+  const sheet = $('#sheet'), back = $('#sheetBackdrop');
+  if (sheet.hidden) return;
+  sheet.classList.remove('show'); back.classList.remove('show');
+  sheet.style.transform = '';
+  clearTimeout(sheetTimer);
+  sheetTimer = setTimeout(() => {
+    sheet.classList.remove('wide');
+    sheet.hidden = true; back.hidden = true;
+    sheet.innerHTML = '';
+  }, reduceMotion() ? 0 : 280);
 }
 $('#sheetBackdrop').addEventListener('click', closeSheet);
+(() => {
+  const sheet = $('#sheet');
+  let y0 = null, dy = 0, t0 = 0;
+  sheet.addEventListener('touchstart', (e) => {
+    if (sheet.scrollTop > 0 || e.target.closest('input[type=range], select, textarea, iframe')) { y0 = null; return; }
+    y0 = e.touches[0].clientY; dy = 0; t0 = Date.now();
+  }, { passive: true });
+  sheet.addEventListener('touchmove', (e) => {
+    if (y0 === null) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0 || sheet.scrollTop > 0) { sheet.classList.remove('dragging'); sheet.style.transform = ''; return; }
+    e.preventDefault();
+    sheet.classList.add('dragging');
+    sheet.style.transform = `translateY(${dy}px)`;
+  }, { passive: false });
+  sheet.addEventListener('touchend', () => {
+    if (y0 === null) return;
+    sheet.classList.remove('dragging');
+    const fast = dy / Math.max(1, Date.now() - t0) > 0.5;
+    if (dy > 110 || (fast && dy > 30)) closeSheet(); else sheet.style.transform = '';
+    y0 = null;
+  });
+})();
+// iOS only shows :active press states when the page listens for touches.
+document.addEventListener('touchstart', () => {}, { passive: true });
+
+// Updates el to match html, touching only what changed: no flashing, pictures and the camera
+// don't reload, taps aren't lost. Numbers inside [data-tween] glide to their new value.
+function patch(el, html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  patchChildren(el, tpl.content);
+}
+function patchChildren(a, b) {
+  const old = [...a.childNodes], next = [...b.childNodes];
+  next.forEach((y, i) => {
+    const x = old[i];
+    if (!x) a.appendChild(y);
+    else if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName || (x.dataset?.key ?? '') !== (y.dataset?.key ?? '')) a.replaceChild(y, x);
+    else if (x.nodeType === 3 || x.nodeType === 8) { if (x.nodeValue !== y.nodeValue) setText(x, y.nodeValue); }
+    else {
+      for (const { name, value } of [...y.attributes]) if (x.getAttribute(name) !== value) x.setAttribute(name, value);
+      for (const { name } of [...x.attributes]) if (!y.hasAttribute(name)) x.removeAttribute(name);
+      if (x.tagName !== 'IFRAME' && x !== document.activeElement) patchChildren(x, y);
+    }
+  });
+  for (let i = next.length; i < old.length; i++) old[i].remove();
+}
+function setText(node, text) {
+  const num = /^(-?\d+(?:\.\d+)?)(.*)$/s;
+  const a = num.exec(node.nodeValue.trim()), b = num.exec(text.trim());
+  if (!node.parentElement?.closest('[data-tween]') || !a || !b || a[2] !== b[2] || reduceMotion()) { node.nodeValue = text; return; }
+  const from = +a[1], to = +b[1], dec = (b[1].split('.')[1] || '').length, start = performance.now();
+  const id = (node.tween = (node.tween || 0) + 1);
+  const step = (t) => {
+    if (node.tween !== id) return;
+    const f = Math.min(1, (t - start) / 450), e = 1 - (1 - f) ** 3;
+    node.nodeValue = (from + (to - from) * e).toFixed(dec) + b[2];
+    if (f < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// Shimmering placeholders shown the first time a page loads (later visits use the last data).
+function skeleton(kind = 'list') {
+  const block = (h, w = '100%') => `<div class="sk" style="height:${h}px;width:${w}"></div>`;
+  if (kind === 'dash') return `${block(150)}<div class="sk-row">${block(46)}${block(46)}</div><div class="sk-row">${block(92)}${block(92)}${block(92)}</div>${block(120)}`;
+  if (kind === 'widgets') return `${block(190)}<div class="sk-row">${block(110)}${block(110)}</div><div class="sk-row">${block(110)}${block(110)}</div>`;
+  return `${block(88)}${block(64)}${block(64)}${block(64)}`;
+}
 $('#backBtn').addEventListener('click', () => { location.hash = backTarget; });
 
 // ---------- Printers module ----------
@@ -46,12 +135,14 @@ const Printers = {
       || JSON.stringify(list) === store.get('printersSeed', null)
       || (list.length === 1 && list[0].id === 'example-1'); // placeholder from the first version
     if (unedited) {
-      try {
-        const seed = await (await fetch('printers.json', { cache: 'no-store' })).json();
-        list = seed;
-        store.set('printers', list);
+      const refresh = fetch('printers.json', { cache: 'no-store' }).then((r) => r.json()).then((seed) => {
+        store.set('printers', seed);
         store.set('printersSeed', JSON.stringify(seed));
-      } catch { list = list || []; }
+        return seed;
+      });
+      // Already have it: use it now and pick up changes in the background for next time.
+      if (list) refresh.catch(() => {});
+      else { try { list = await refresh; } catch { list = []; } }
     }
     return list;
   },
@@ -243,11 +334,40 @@ const Monitor = {
   servedByMonitor() { return location.hostname.endsWith('.ts.net') || location.port === '8787'; },
   base() { return this.servedByMonitor() ? location.origin : this.DEFAULT; },
   async get(path) {
-    const res = await fetch(this.base() + path, { signal: AbortSignal.timeout(5000), cache: 'no-store' });
-    if (!res.ok) throw new Error(`Monitor replied ${res.status}`);
-    return res.json();
+    let data;
+    if (Demo.active) data = await Demo.get(path);
+    else {
+      const res = await fetch(this.base() + path, { signal: AbortSignal.timeout(5000), cache: 'no-store' });
+      if (!res.ok) throw new Error(`Monitor replied ${res.status}`);
+      data = await res.json();
+    }
+    this.remember(path, data);
+    return data;
   },
+  // Last good reply per address, so pages show something instantly and then refresh quietly.
+  memo: new Map(),
+  KEEP: /^\/api\/(status|power|usage|maintenance|trends|printer\/[\w-]+(\/files)?)$/,
+  cacheKey(path) { return `cache:${Demo.active ? 'demo:' : ''}${path}`; },
+  cached(path) {
+    if (!this.memo.has(path)) { const v = store.get(this.cacheKey(path), null); if (v) this.memo.set(path, v); }
+    return this.memo.get(path) || null;
+  },
+  remember(path, data) {
+    this.memo.set(path, data);
+    if (this.KEEP.test(path)) store.set(this.cacheKey(path), data);
+  },
+  // show(data) runs with the remembered reply straight away (if any), then with the fresh one.
+  async load(path, show) {
+    const c = this.cached(path);
+    if (c) show(c, false);
+    const fresh = await this.get(path);
+    show(fresh, true);
+    return fresh;
+  },
+  // Pictures served by the monitor (demo mode uses bundled ones).
+  img(path, demoRel) { return Demo.active ? Demo.img(demoRel) : this.base() + path; },
   async post(path, body) {
+    if (Demo.active) return Demo.post(path, body);
     const res = await fetch(this.base() + path, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
@@ -275,6 +395,11 @@ const Alerts = {
   },
 
   async open() {
+    if (Demo.active) {
+      openSheet(`<h2>Notifications</h2><p class="note">Notifications work in the real app — demo mode only shows sample data.</p><div class="row"><button class="btn" id="cancelSheet">Close</button></div>`);
+      $('#cancelSheet').onclick = closeSheet;
+      return;
+    }
     const sub = await this.subscription().catch(() => null);
     let body;
     if (!this.supported() || (/iPhone|iPad/.test(navigator.userAgent) && !this.installed())) {
@@ -354,29 +479,91 @@ const ROUTES = {
   power: () => PowerPage.render(),
   radar: () => RadarPage.render(),
   maintenance: () => MaintPage.render(),
+  products: () => ProductsPage.render(),
+  discover: () => showModelsTab(),
+  storage: () => StoragePage.render(),
   settings: () => SettingsPage.render(),
 };
 const TAB_ROOT = { home: '', printers: 'printers', business: 'business', settings: 'settings' };
 const currentRoute = () => location.hash.replace(/^#\/?/, '');
+// Pages with an id in the address, e.g. #/products/<id>.
+const ROUTE_PATTERNS = [[/^products\/(\w+)$/, (m) => ProductsPage.detail(m[1])], [/^discover\/(\d+)$/, (m) => DiscoverPage.detail(m[1])]];
+function routeFor(r) {
+  if (ROUTES[r]) return ROUTES[r];
+  for (const [re, fn] of ROUTE_PATTERNS) { const m = r.match(re); if (m) return () => fn(m); }
+  return null;
+}
 function tabFor(r) {
   if (r.startsWith('printers')) return 'printers';
-  if (['business', 'usage', 'power', 'radar', 'maintenance'].includes(r)) return 'business';
+  if (r === 'storage') return 'settings';
+  if (['business', 'usage', 'power', 'radar', 'maintenance', 'products', 'discover'].includes(r.split('/')[0])) return 'business';
   if (r === 'settings') return 'settings';
   return 'home';
 }
 
+// Navigation: pages slide like a native app (deeper pages in from the right, back out to the
+// right, tabs cross-fade), the tab highlight glides, and going back restores the scroll position.
+const scrollMemory = {};
+let lastInput = 0; // the user's own scrolling wins over restoring
+for (const ev of ['touchmove', 'wheel']) addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true });
+let lastRoute = null;
+const depth = (r) => (TAB_ROOT[tabFor(r)] === r ? 0 : r.split('/').length);
+
+function moveTabPill(animate) {
+  const on = $('#tabbar a.on'), pill = $('#tabPill');
+  if (!on || !pill) return;
+  pill.classList.toggle('still', !animate);
+  pill.style.width = `${on.offsetWidth}px`;
+  pill.style.transform = `translateX(${on.offsetLeft}px)`;
+}
+
 function route() {
   closeSheet();
-  const r = ROUTES[currentRoute()] ? currentRoute() : '';
-  const tab = tabFor(r);
-  document.body.classList.toggle('is-home', r === '');
-  document.querySelectorAll('#tabbar [data-tab]').forEach((a) => {
-    const on = a.dataset.tab === tab;
-    a.classList.toggle('on', on);
-    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
-  });
-  ROUTES[r]();
-  window.scrollTo(0, 0);
+  const r = routeFor(currentRoute()) ? currentRoute() : '';
+  const from = lastRoute;
+  if (from !== null) scrollMemory[from] = window.scrollY;
+  const dir = from === null ? 'none' : tabFor(from) !== tabFor(r) ? 'tab' : depth(r) > depth(from) ? 'forward' : depth(r) < depth(from) ? 'back' : 'tab';
+  lastRoute = r;
+
+  const show = () => {
+    const tab = tabFor(r);
+    document.body.classList.toggle('is-home', r === '');
+    document.querySelectorAll('#tabbar [data-tab]').forEach((a) => {
+      const on = a.dataset.tab === tab;
+      a.classList.toggle('on', on);
+      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+    moveTabPill(dir !== 'none');
+    const done = Promise.resolve(routeFor(r)()).catch(() => {});
+    window.scrollTo(0, 0);
+    // Going back: return to where you were once the page has filled in (it may draw a moment later).
+    const target = dir === 'back' ? scrollMemory[r] || 0 : 0, at = Date.now();
+    if (target) [0, 60, 160, 320, 600, 1000].forEach((ms) => setTimeout(() => {
+      if (lastRoute === r && lastInput < at && Math.abs(window.scrollY - target) > 2) window.scrollTo(0, target);
+    }, ms));
+    // Let the page draw (from remembered data it's immediate) before the transition snapshot.
+    return Promise.race([done, new Promise((res) => setTimeout(res, 160))]);
+  };
+
+  document.documentElement.dataset.nav = dir;
+  if (dir === 'none' || reduceMotion()) return show();
+  if (document.startViewTransition && document.visibilityState === 'visible') {
+    // Tapping quickly skips the previous transition, and a transition can be refused (e.g. the
+    // app is in the background): the page must still change, so show it ourselves if needed.
+    let ran = false;
+    const once = () => { if (ran) return undefined; ran = true; return show(); };
+    const t = document.startViewTransition(once);
+    t.updateCallbackDone.catch(() => once());
+    t.ready.catch(() => {});
+    t.finished.catch(() => {});
+    setTimeout(() => { if (lastRoute === r) once(); }, 400);
+    return;
+  }
+  show();
+  const v = $('#view');
+  v.classList.remove('enter-forward', 'enter-back', 'enter-tab');
+  void v.offsetWidth;
+  v.classList.add(`enter-${dir}`);
 }
 
 // Splash: show the logo briefly once per app launch, then fade into the app.
@@ -390,6 +577,8 @@ function route() {
 })();
 
 window.addEventListener('hashchange', route);
+window.addEventListener('resize', () => moveTabPill(false));
+if (Demo.active) document.body.classList.add('demo');
 route();
 
 if ('serviceWorker' in navigator) {

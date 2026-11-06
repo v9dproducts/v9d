@@ -34,6 +34,7 @@ const Idea = z.object({
   difficulty: z.enum(['easy', 'medium', 'hard']),
   designSource: z.string().describe('How to get the design: design it yourself, or a model with a licence that allows selling prints (say which licence to check)'),
   why: z.string().describe('Evidence or reasoning for demand'),
+  search: z.string().describe('2–4 word phrase to find a ready-made model for this on Thingiverse or Printables, e.g. "christmas bauble name" — plain words, no brand names'),
 });
 
 const Report = z.object({
@@ -46,6 +47,7 @@ const Report = z.object({
     priceRange: z.string(),
     printable: z.boolean().describe('Can be made on these printers without non-printed parts that are hard to source'),
     printNotes: z.string(),
+    search: z.string().describe('2–4 word phrase to find a ready-made model for this on Thingiverse or Printables, e.g. "christmas bauble name" — plain words, no brand names'),
     sources: z.array(z.object({ title: z.string(), url: z.string() })),
   })),
   ideas: z.array(Idea),
