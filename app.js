@@ -477,19 +477,22 @@ const ROUTES = {
   radar: () => RadarPage.render(),
   maintenance: () => MaintPage.render(),
   products: () => ProductsPage.render(),
+  discover: () => DiscoverPage.render(),
+  storage: () => StoragePage.render(),
   settings: () => SettingsPage.render(),
 };
 const TAB_ROOT = { home: '', printers: 'printers', business: 'business', settings: 'settings' };
 const currentRoute = () => location.hash.replace(/^#\/?/, '');
 // Pages with an id in the address, e.g. #/products/<id>.
-const ROUTE_PATTERNS = [[/^products\/(\w+)$/, (m) => ProductsPage.detail(m[1])]];
+const ROUTE_PATTERNS = [[/^products\/(\w+)$/, (m) => ProductsPage.detail(m[1])], [/^discover\/(\d+)$/, (m) => DiscoverPage.detail(m[1])]];
 function routeFor(r) {
   if (ROUTES[r]) return ROUTES[r];
   for (const [re, fn] of ROUTE_PATTERNS) { const m = r.match(re); if (m) return () => fn(m); }
   return null;
 }
 function tabFor(r) {
-  if (r.startsWith('printers')) return 'printers';
+  if (r.startsWith('printers') || r.startsWith('discover')) return 'printers';
+  if (r === 'storage') return 'settings';
   if (['business', 'usage', 'power', 'radar', 'maintenance', 'products'].includes(r.split('/')[0])) return 'business';
   if (r === 'settings') return 'settings';
   return 'home';

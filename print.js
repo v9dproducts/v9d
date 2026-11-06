@@ -68,6 +68,7 @@ const PrintPage = {
           <span class="muted">From Files, iCloud or your MakerWorld downloads · up to 200 MB</span>
         </label>
         <div id="upProgress"></div>
+        <a class="btn block disc-entry" href="#/discover">${icon('trend', 18)} Discover trending models</a>
         <p class="hint">The home PC slices it with OrcaSlicer using the settings you choose here — a 3MF’s own print settings are replaced. Multi-colour 3MF files keep their colours; you pick which CFS slot each one prints from.</p>`;
       $('#pickFile').onchange = (e) => e.target.files[0] && this.upload(e.target.files[0]);
       this.bindPrinterSeg();
@@ -81,6 +82,7 @@ const PrintPage = {
         <span class="w-col"><b>${esc(j.name)}</b><span class="muted">${j.ext.slice(1).toUpperCase()} · ${j.size < 1048576 ? `${Math.max(1, Math.round(j.size / 1024))} KB` : `${(j.size / 1048576).toFixed(1)} MB`}${j.plates > 1 ? ` · ${j.plates} plates` : ''} </span></span>
         <button class="chip" id="newFile">Change</button>
       </div>
+      ${j.source ? `<p class="src-line">${sourceHtml(j.source)}</p>${j.source.sellable === false ? '<p class="help-warn">Personal use only — this model’s licence doesn’t allow selling prints.</p>' : ''}` : ''}
       ${this.settingsHtml(j)}
       <div id="result">${this.resultHtml(j)}</div>`;
     $('#newFile').onclick = () => { store.set('printJob', null); this.job = null; this.draw(); };

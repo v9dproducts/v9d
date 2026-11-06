@@ -183,6 +183,9 @@ const SettingsPage = {
         <label class="check"><input type="checkbox" id="sEbay" ${Fees.settings().ebayBusiness ? 'checked' : ''}><span>eBay business seller <small class="muted">about 12.8% + 30p per order; private sellers pay no fees on most UK sales</small></span></label>
         <label class="check"><input type="checkbox" id="sVat" ${Fees.settings().vatRegistered ? 'checked' : ''}><span>VAT registered <small class="muted">prices include 20% VAT you pay; VAT on platform fees is reclaimed</small></span></label>
       </div>
+      <h3 class="day">Home PC</h3>
+      <a class="hub-row" href="#/storage"><span class="hub-icon">${icon('sliders', 26)}</span>
+        <span class="w-col"><b>Storage</b><span class="w-sub">Free space, automatic clean-up</span></span><span class="chev" aria-hidden="true">›</span></a>
       <h3 class="day">Printers</h3>
       <a class="hub-row" href="#/printers/manage"><span class="hub-icon">${icon('printer', 26)}</span>
         <span class="w-col"><b>Manage printers</b><span class="w-sub">Add, edit, export or import printers</span></span><span class="chev" aria-hidden="true">›</span></a>`;

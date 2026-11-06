@@ -55,6 +55,7 @@ class Products {
     Object.assign(p, {
       ext: job.ext, colours: job.colours, plates: job.plates,
       settings: job.settings, result: { ...result, printer: job.settings.printer },
+      source: job.source || p.source || null,
       updated: Date.now(),
     });
   }

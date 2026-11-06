@@ -76,6 +76,7 @@ const ProductsPage = {
       <div class="prod-hero">
         <img src="${esc(productImg(x))}" alt="">
         <div class="prod-title"><input id="pName" value="${esc(x.name)}" aria-label="Product name" maxlength="80"><span class="muted" id="saved"></span></div>
+        ${x.source ? `<span class="src-line">${sourceHtml(x.source)}</span>` : ''}
         <span class="muted">${x.printed ? `Printed ${x.printed} time${x.printed > 1 ? 's' : ''} · last ${fmt.date(x.lastPrinted)}` : 'Not printed from V9D yet'}</span>
       </div>
 

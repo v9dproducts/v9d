@@ -15,6 +15,8 @@ const k1 = require('./k1dash');
 const DASH = { moonraker: dash, creality: k1 }; // full dashboard module per printer type
 const { Slicer } = require('./slicer');
 const { Products } = require('./products');
+const { Discover } = require('./discover');
+const { Housekeeping } = require('./housekeeping');
 
 const DATA = path.join(__dirname, 'data');
 fs.mkdirSync(DATA, { recursive: true });
@@ -76,6 +78,7 @@ const maintenance = new Maintenance(DATA, usage, (...a) => notify(...a), log);
 const trends = new Trends(DATA, config, log);
 const slicer = new Slicer(DATA, log);
 const products = new Products(DATA, slicer, log);
+const discover = new Discover(config, slicer, log);
 
 // Motors stay energised for a while after a print, then the firmware switches them off.
 function holding(id, state) {
@@ -345,7 +348,7 @@ function readBody(req) {
 // (always current), falling back to the copy next to this folder.
 const APP_URL = config.printersUrl.replace(/printers\.json$/, '');
 // Explicit list — add new app files here. Nothing in monitor/ (keys, data) is ever served.
-const APP_FILES = new Set(['index.html', 'app.js', 'costs.js', 'maint.js', 'maint-help.js', 'radar.js', 'dash.js', 'print.js', 'products.js', 'fees.js', 'home.js', 'demo.js', 'demo-camera.html', 'icons.js',
+const APP_FILES = new Set(['index.html', 'app.js', 'costs.js', 'maint.js', 'maint-help.js', 'radar.js', 'dash.js', 'print.js', 'products.js', 'fees.js', 'discover.js', 'home.js', 'demo.js', 'demo-camera.html', 'icons.js',
   'styles.css', 'sw.js', 'manifest.webmanifest', 'printers.json', 'trends-snapshot.json']);
 const appFileFor = (pathname) => {
   const f = pathname === '/' ? 'index.html' : pathname.slice(1);
@@ -450,6 +453,26 @@ http.createServer(async (req, res) => {
       }
       return send(res, 404, { error: 'not found' }, origin);
     }
+    // ---------- Discover (Thingiverse) ----------
+    if (req.method === 'GET' && url.pathname === '/api/discover') {
+      if (!discover.available()) return send(res, 200, { available: false, items: [] }, origin);
+      try {
+        const q = url.searchParams;
+        return send(res, 200, { available: true, ...(await discover.list({ q: q.get('q') || '', sort: q.get('sort') || 'trending', sellable: q.get('sellable') === '1', page: Number(q.get('page')) || 1 })) }, origin);
+      } catch (err) { return send(res, 502, { error: err.message }, origin); }
+    }
+    const dm = url.pathname.match(/^\/api\/discover\/thing\/(\d{1,12})(\/print)?$/);
+    if (dm) {
+      try {
+        if (req.method === 'GET' && !dm[2]) return send(res, 200, await discover.thing(dm[1]), origin);
+        if (req.method === 'POST' && dm[2]) return send(res, 200, slicer.public(await discover.toJob(dm[1], (await readBody(req)).file)), origin);
+      } catch (err) { return send(res, 400, { error: err.message }, origin); }
+    }
+
+    // ---------- Storage ----------
+    if (req.method === 'GET' && url.pathname === '/api/storage') return send(res, 200, housekeeping.report(), origin);
+    if (req.method === 'POST' && url.pathname === '/api/storage/clean') return send(res, 200, housekeeping.run({ deep: true }), origin);
+
     // ---------- Products ----------
     if (req.method === 'GET' && url.pathname === '/api/products') return send(res, 200, { products: products.all() }, origin);
     if (req.method === 'POST' && url.pathname === '/api/products') {
@@ -582,6 +605,7 @@ http.createServer(async (req, res) => {
   }
 }).listen(config.port, '127.0.0.1', () => log(`V9D monitor on http://127.0.0.1:${config.port}`));
 
+const housekeeping = new Housekeeping(DATA, config, { slicer, printers, notify: (...a) => notify(...a), log });
 loadPrinters().then(() => setTimeout(() => { for (const id of printers.keys()) syncHistory(id); }, 10000));
 setInterval(loadPrinters, 10 * 60 * 1000);
 setInterval(() => { for (const id of printers.keys()) syncHistory(id); }, 30 * 60 * 1000);

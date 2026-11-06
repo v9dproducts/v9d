@@ -46,6 +46,21 @@ const Demo = {
       if (pm[2] === '/files') return { files: this.files(pm[1]) };
       if (pm[2] === '/cfs') return pm[1] === 'k2-plus' ? this.cfs() : { connected: false, slots: [] };
     }
+    if (p === '/api/discover') {
+      const q = (u.searchParams.get('q') || '').toLowerCase(), sort = u.searchParams.get('sort');
+      let items = this.models.map((m) => this.modelSummary(m)).filter((m) => !q || m.name.toLowerCase().includes(q));
+      if (u.searchParams.get('sellable') === '1') items = items.filter((m) => m.licence.sellable);
+      items.sort(sort === 'newest' ? (a, b) => b.id - a.id : sort === 'makes' ? (a, b) => b.makes - a.makes : (a, b) => b.likes - a.likes);
+      return { available: true, total: items.length, items: Number(u.searchParams.get('page')) > 1 ? [] : items };
+    }
+    const dm = p.match(/^\/api\/discover\/thing\/(\d+)$/);
+    if (dm) {
+      const m = this.models.find((x) => x.id === +dm[1]);
+      if (!m) throw new Error('Monitor replied 404');
+      return { ...this.modelSummary(m), description: m.about, pictures: [this.img(m.img), this.img('block.png')],
+        files: [...m.files.map((f, i) => ({ id: m.id * 10 + i, name: f, size: 350000 + i * 120000, printable: /\.(stl|3mf)$/i.test(f) }))] };
+    }
+    if (p === '/api/storage') return this.storage;
     if (p === '/api/products') return { products: this.products.slice().sort((a, b) => (b.lastPrinted || b.updated) - (a.lastPrinted || a.updated)) };
     const prm = p.match(/^\/api\/products\/(\w+)$/);
     if (prm) { const x = this.products.find((q) => q.id === prm[1]); if (!x) throw new Error('Monitor replied 404'); return { ...x }; }
@@ -78,6 +93,25 @@ const Demo = {
       return { ok: true, message: body.start ? 'Sent — the print is starting' : 'Sent to the printer' };
     }
     if (path === '/api/maintenance/perform') return this.maintenance();
+    const dp = path.match(/^\/api\/discover\/thing\/(\d+)\/print$/);
+    if (dp) {
+      const m = this.models.find((x) => x.id === +dp[1]);
+      const f = m.files[Number(body.file) - m.id * 10];
+      if (!/\.(stl|3mf)$/i.test(f || '')) throw new Error('Monitor replied 400');
+      const ext = f.match(/\.\w+$/)[0].toLowerCase(), id = `demo${this.nextJob++}`;
+      const l = this.licence(m.licence);
+      this.jobs[id] = { id, name: m.name, ext, size: 400000, created: Date.now(), state: 'uploaded', plates: 1,
+        colours: ext === '.3mf' ? [{ colour: '#E5484D', type: 'PLA', used: true }, { colour: '#2B6CB0', type: 'PLA', used: true }] : [{ colour: '#FFFFFF', type: '', used: true }],
+        source: { site: 'Thingiverse', id: m.id, url: `https://www.thingiverse.com/thing:${m.id}`, file: f, creator: m.creator, licence: m.licence, sellable: l.sellable } };
+      await new Promise((r) => setTimeout(r, 900));
+      return { ...this.jobs[id] };
+    }
+    if (path === '/api/storage/clean') {
+      const freed = this.storage.parts[0].bytes * 0.8 + (this.storage.parts[4]?.bytes || 0) * 0.6;
+      this.storage.parts[0].bytes *= 0.2; if (this.storage.parts[4]) this.storage.parts[4].bytes *= 0.4;
+      this.storage.disk.free += freed; this.storage.last = { at: Date.now(), freed };
+      return this.storage;
+    }
     if (path === '/api/products') {
       const j = this.jobs[body.fromJob];
       if (!j?.result) throw new Error('Monitor replied 400');
@@ -355,6 +389,30 @@ const Demo = {
     }, 2600);
     return { ...j };
   },
+
+  // Sample Thingiverse models (pictures are the bundled demo renders).
+  models: [
+    { id: 6001, name: 'Cable clip set', img: 'block.png', creator: 'deskmaker', likes: 4210, makes: 380, licence: 'Creative Commons - Attribution', files: ['cable_clip_set.stl', 'cable_clip_small.stl'], about: 'Snap-on cable clips for desk edges, 3 sizes.' },
+    { id: 6002, name: 'Articulated speed boat', img: 'benchy.png', creator: 'boatbuilder', likes: 12800, makes: 2100, licence: 'Creative Commons - Attribution - Non-Commercial', files: ['speedboat.3mf', 'source.zip'], about: 'Print-in-place boat with moving rudder.' },
+    { id: 6003, name: 'Two tone coaster', img: 'blocks.png', creator: 'colourplay', likes: 3300, makes: 410, licence: 'Creative Commons - Attribution - Share Alike', files: ['coaster_2colour.3mf'], about: 'Two-colour coaster set, prints in under an hour.' },
+    { id: 6004, name: 'Skadis hook pack', img: 'stand.png', creator: 'pegboardpro', likes: 8900, makes: 1500, licence: 'Creative Commons - Public Domain Dedication', files: ['skadis_hooks.stl'], about: 'Hooks and shelves for the IKEA Skadis pegboard.' },
+    { id: 6005, name: 'Phone stand (folding)', img: 'stand.png', creator: 'minimalist', likes: 2100, makes: 290, licence: 'Creative Commons - Attribution - No Derivatives', files: ['phone_stand.stl'], about: 'Folding phone stand, no supports needed.' },
+    { id: 6006, name: 'Dragon keyring', img: 'benchy.png', creator: 'dragonfan', likes: 15400, makes: 3200, licence: 'Creative Commons - Attribution - Non-Commercial - Share Alike', files: ['dragon_keyring.stl'], about: 'Flexi dragon keyring.' },
+    { id: 6007, name: 'Desk tidy block', img: 'block.png', creator: 'deskmaker', likes: 980, makes: 120, licence: 'GNU - GPL', files: ['desk_tidy.stl'], about: 'Modular desk tidy.' },
+  ],
+  licence(name) {
+    if (/non.?commercial/i.test(name)) return { name, sellable: false, note: 'Personal use only — you can’t sell prints of this.' };
+    return { name, sellable: true, note: /no derivatives/i.test(name) ? 'You can sell prints — credit the designer and don’t modify the model.' : /public domain/i.test(name) ? 'Free to use and sell.' : 'You can sell prints — credit the designer.' };
+  },
+  modelSummary(m) { return { id: m.id, name: m.name, thumbnail: this.img(m.img), creator: m.creator, likes: m.likes, makes: m.makes, downloads: m.makes * 9, licence: this.licence(m.licence), ai: false, url: `https://www.thingiverse.com/thing:${m.id}` }; },
+
+  storage: { disk: { total: 238 * 1024 ** 3, free: 61.4 * 1024 ** 3 }, last: { at: Date.now() - 18 * 3600000, freed: 412 * 1024 ** 2 }, parts: [
+    { id: 'slicer', label: 'Slices and downloads', note: 'removed after 7 days', bytes: 1.3 * 1024 ** 3 },
+    { id: 'products', label: 'Products', note: 'kept until you delete them', bytes: 86 * 1024 ** 2 },
+    { id: 'thumbs', label: 'Printer file pictures', note: 'removed after 60 days', bytes: 4.2 * 1024 ** 2 },
+    { id: 'logs', label: 'Logs', note: 'trimmed above 5 MB', bytes: 3.1 * 1024 ** 2 },
+    { id: 'folder0', label: 'Downloads', note: 'files older than 14 days removed', bytes: 2.4 * 1024 ** 3 },
+  ] },
 
   fromJob(x, j) {
     Object.assign(x, { ext: j.ext, colours: j.colours, plates: 1, settings: j.settings, result: { ...j.result, printer: j.settings.printer },
