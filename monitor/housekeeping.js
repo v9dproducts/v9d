@@ -3,6 +3,8 @@
 //   - slice jobs (uploads, downloads, G-code) older than 7 days are removed — products keep
 //     their own copies;
 //   - extracted K2 Plus thumbnails older than 60 days are removed;
+//   - products made from Thingiverse models lose their stored files after 28 days unused
+//     (Thingiverse's API terms: no copies kept beyond 30 days unused);
 //   - folders listed in config.json "cleanFolders" (e.g. Downloads) lose files older than N days;
 //   - logs over 5 MB are rotated (the start-up scripts move them aside on restart, so the monitor
 //     restarts itself — only when no printer is printing — and the camera relay is restarted);
@@ -42,7 +44,8 @@ function prune(dir, days, keep = () => false) {
 }
 
 class Housekeeping {
-  constructor(dataDir, config, { slicer, printers, notify, log }) {
+  constructor(dataDir, config, { slicer, products, printers, notify, log }) {
+    this.products = products;
     this.data = dataDir;
     this.config = config;
     this.slicer = slicer;
@@ -73,7 +76,7 @@ class Housekeeping {
   report() {
     const parts = [
       { id: 'slicer', label: 'Slices and downloads', note: 'removed after 7 days', bytes: sizeOf(path.join(this.data, 'slicer')) },
-      { id: 'products', label: 'Products', note: 'kept until you delete them', bytes: sizeOf(path.join(this.data, 'products')) },
+      { id: 'products', label: 'Products', note: 'kept until you delete them · Thingiverse models: files removed after 28 days unused', bytes: sizeOf(path.join(this.data, 'products')) },
       { id: 'thumbs', label: 'Printer file pictures', note: 'removed after 60 days', bytes: sizeOf(path.join(this.data, 'thumbs')) },
       { id: 'logs', label: 'Logs', note: 'trimmed above 5 MB', bytes: this.logs().reduce((a, l) => a + sizeOf(l.file) + sizeOf(l.file.replace(/\.log$/, '.old.log')), 0) },
       ...this.folders().map((f, i) => ({ id: `folder${i}`, label: path.basename(f.path), note: `files older than ${f.days} days removed`, bytes: sizeOf(f.path) })),
@@ -100,6 +103,7 @@ class Housekeeping {
     freed += prune(path.join(this.data, 'slicer'), deep ? 1 : 7, (id) => this.slicer.get(id)?.state === 'slicing' || this.slicer.get(id)?.state === 'queued');
     this.slicer.forgetMissing();
     freed += prune(path.join(this.data, 'thumbs'), 60);
+    if (this.products) freed += this.products.expireThingiverse();
     for (const f of this.folders()) freed += prune(f.path, f.days);
 
     // Logs: the start-up scripts move a big log aside when they (re)start the program.

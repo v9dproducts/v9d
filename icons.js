@@ -15,6 +15,7 @@ const ICON_PATHS = {
   calendar: 'M4 6h16v15H4z M4 10h16 M8 3v4 M16 3v4',
   plus: 'M12 5v14 M5 12h14',
   tag: 'M3 12V4h8l10 10-8 8z M7.5 7.5h.01',
+  shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9 12l2 2 4-4',
 };
 
 function icon(name, size = 24) {

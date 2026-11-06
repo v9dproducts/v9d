@@ -4,7 +4,10 @@
 
 const PRINTER_NAMES = { 'k2-plus': 'K2 Plus', 'k1-max': 'K1 Max' };
 const QUALITY_NAMES = { draft: 'Draft 0.24 mm', standard: 'Standard 0.20 mm', fine: 'Fine 0.16 mm', extrafine: 'Extra fine 0.12 mm' };
-const productImg = (p) => Monitor.img(`/api/products/${p.id}/preview?t=${p.updated}`, p.demoImg || '');
+// A Thingiverse product whose stored files were removed (30-day rule) shows Thingiverse's own picture.
+const productImg = (p) => (p.filesRemoved && p.source?.thumbnail ? safeUrl(p.source.thumbnail)
+  : Monitor.img(`/api/products/${p.id}/preview?t=${p.updated}`, p.demoImg || ''));
+const TV_RULE = 'Thingiverse’s rules only allow keeping a copy of its models while they’re in use, so V9D removes the stored file after 28 days without printing.';
 
 const ProductsPage = {
   list: null,
@@ -43,6 +46,7 @@ const ProductsPage = {
           <span class="w-col">
             <b>${esc(x.name)}</b>
             <span class="muted">${fmt.money(c)} each${x.units > 1 ? ` · ${x.units} per print` : ''} · ${esc(PRINTER_NAMES[x.result?.printer] || '')}</span>
+            ${x.filesRemoved ? '<span class="muted">☁︎ File removed — downloads again when you print</span>' : ''}
             ${pr ? `<span class="muted">${esc(Fees.CHANNELS[best[0]].label)} ${fmt.money(best[1])} → <b class="${pr.profit >= 0 ? 'pos' : 'neg'}">${fmt.money(Math.abs(pr.profit))} ${pr.profit >= 0 ? 'profit' : 'loss'}</b> (${Math.round(pr.margin * 100)}%)</span>`
               : `<span class="muted">No price yet · min. ${fmt.money(Fees.suggest('etsy', c, undefined, fs) || 0)} on Etsy for ${fs.margin}%</span>`}
           </span>
@@ -80,10 +84,14 @@ const ProductsPage = {
         <span class="muted">${x.printed ? `Printed ${x.printed} time${x.printed > 1 ? 's' : ''} · last ${fmt.date(x.lastPrinted)}` : 'Not printed from V9D yet'}</span>
       </div>
 
+      ${x.filesRemoved ? `
+      <p class="banner">☁︎ The model file was removed on ${fmt.date(x.filesRemoved)}. ${TV_RULE} Your prices, settings and listings are kept.</p>
+      <button class="btn primary block" id="refetch">${icon('printer', 18)} Download & slice again</button>` : `
       <div class="ctrl-row">
         <button class="btn primary" id="printAgain">${icon('printer', 18)} Print again</button>
         <button class="btn" id="sendOnly">Send to printer</button>
-      </div>
+      </div>`}
+      ${x.source?.site === 'Thingiverse' && !x.filesRemoved ? `<p class="hint">From Thingiverse: the stored file is removed after 28 days without printing, then downloaded again when needed.</p>` : ''}
       <p class="hint print-meta">${esc(printer)} · about ${fmt.hours(r.seconds || 0)} · done ${finishTime(r.seconds || 0)} if started now · ${r.grams || 0} g</p>
 
       <h3 class="day">Cost per item</h3>
@@ -108,7 +116,7 @@ const ProductsPage = {
         <span>Supports</span><b>${s.supports ? 'Tree' : 'Off'}</b>
         <span>Filament</span><b>${(r.perColour || []).map((k) => `<span class="swatch sm" style="background:${esc(k.colour)}"></span> ${k.slot ? `${k.slot} · ` : ''}${esc(k.material)}`).join('<br>') || '—'}</b>
       </div>
-      <button class="btn block" id="changeSettings">Change settings or printer…</button>
+      ${x.filesRemoved ? '' : '<button class="btn block" id="changeSettings">Change settings or printer…</button>'}
 
       <h3 class="day">Listings</h3>
       <div class="panel" id="listings">${this.listingsHtml()}</div>
@@ -182,16 +190,22 @@ const ProductsPage = {
     $('#pNotes').oninput = (e) => this.save({ notes: e.target.value });
     this.bindPricing();
     this.bindListings();
-    $('#printAgain').onclick = () => this.printSheet();
-    $('#sendOnly').onclick = () => this.print(false);
-    $('#changeSettings').onclick = async () => {
+    const openInPrint = async (btn) => {
+      const was = btn.innerHTML;
+      if (x.filesRemoved) { btn.disabled = true; btn.textContent = 'Downloading from Thingiverse…'; }
       try {
         const job = await Monitor.post(`/api/products/${x.id}/settings`, {});
         store.set('printJob', job.id);
         store.set('printPrinter', x.result?.printer);
         location.hash = '#/printers/print';
-      } catch (e) { toast(`Couldn’t open the settings: ${e.message}`, true); }
+      } catch (e) { toast(`Couldn’t ${x.filesRemoved ? 'download it' : 'open the settings'}: ${e.message}`, true); btn.disabled = false; btn.innerHTML = was; }
     };
+    if (x.filesRemoved) $('#refetch').onclick = (e) => openInPrint(e.currentTarget);
+    else {
+      $('#printAgain').onclick = () => this.printSheet();
+      $('#sendOnly').onclick = () => this.print(false);
+      $('#changeSettings').onclick = (e) => openInPrint(e.currentTarget);
+    }
     $('#deleteProduct').onclick = () => {
       openSheet(`<h2>Delete ${esc(x.name)}?</h2><p class="note">Its saved file, picture and prices are removed. Files already on the printers stay.</p>
         <div class="row"><button class="btn" id="cancelSheet">Keep</button><button class="btn danger-fill" id="doDelete">Delete</button></div>`);

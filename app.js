@@ -482,6 +482,7 @@ const ROUTES = {
   products: () => ProductsPage.render(),
   discover: () => showModelsTab(),
   storage: () => StoragePage.render(),
+  privacy: () => PrivacyPage.render(),
   settings: () => SettingsPage.render(),
 };
 const TAB_ROOT = { home: '', printers: 'printers', business: 'business', settings: 'settings' };
@@ -495,7 +496,7 @@ function routeFor(r) {
 }
 function tabFor(r) {
   if (r.startsWith('printers')) return 'printers';
-  if (r === 'storage') return 'settings';
+  if (r === 'storage' || r === 'privacy') return 'settings';
   if (['business', 'usage', 'power', 'radar', 'maintenance', 'products', 'discover'].includes(r.split('/')[0])) return 'business';
   if (r === 'settings') return 'settings';
   return 'home';

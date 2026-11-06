@@ -109,10 +109,11 @@ class Discover {
   }
 
   // Downloads one STL/3MF into a new slice job. Nothing else is ever downloaded or opened.
-  // extra: { occasion, idea } when it came from Trend Radar, kept with the product.
+  // extra: { occasion, idea } when it came from Trend Radar, kept with the product;
+  // { fileName } finds the file by name when its id isn't known.
   async toJob(thingId, fileId, extra = {}) {
     const t = await this.thing(thingId);
-    const f = t.files.find((x) => String(x.id) === String(fileId));
+    const f = t.files.find((x) => String(x.id) === String(fileId)) || (extra.fileName ? t.files.find((x) => x.name === extra.fileName) : null);
     if (!f) throw new Error('That file isn’t part of this model');
     if (!f.printable) throw new Error('Only STL and 3MF files can be sliced');
     if (f.size > MAX_FILE) throw new Error('File is larger than 200 MB');
@@ -124,7 +125,7 @@ class Discover {
     const ext = f.name.match(PRINTABLE)[0].toLowerCase();
     const name = `${t.name}${t.files.filter((x) => x.printable).length > 1 ? ` – ${f.name.replace(PRINTABLE, '')}` : ''}`.slice(0, 80);
     return this.slicer.fromBuffer(buf, name, ext, {
-      site: 'Thingiverse', id: t.id, url: t.url, file: f.name, creator: t.creator, licence: t.licence.name, sellable: t.licence.sellable,
+      site: 'Thingiverse', id: t.id, url: t.url, file: f.name, fileId: f.id, thumbnail: t.thumbnail, creator: t.creator, licence: t.licence.name, sellable: t.licence.sellable,
       occasion: String(extra.occasion || '').slice(0, 60) || null, idea: String(extra.idea || '').slice(0, 120) || null,
     });
   }

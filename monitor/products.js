@@ -6,10 +6,18 @@
 // data/products/<id>/model.stl|.3mf      the model, for re-slicing with other settings
 // data/products/<id>/print.gcode          last slice (with its preview picture embedded)
 // data/products/<id>/preview.png          picture shown in the app
+//
+// Thingiverse's API terms only allow temporary copies of its models, deleted once unused for 30
+// days. So a product made from a Thingiverse model keeps its files only while it's in use: after
+// TV_KEEP_DAYS without printing or re-slicing, the model, G-code and picture are removed (prices,
+// settings, listings and the link stay) and "Download & slice again" fetches the file fresh.
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+
+const TV_KEEP_DAYS = 28; // a little under Thingiverse's 30 days, as housekeeping runs nightly
+const fromThingiverse = (p) => p.source?.site === 'Thingiverse';
 
 const EDITABLE = {
   name: (v) => String(v || '').trim().slice(0, 80) || null,
@@ -56,7 +64,7 @@ class Products {
       ext: job.ext, colours: job.colours, plates: job.plates,
       settings: job.settings, result: { ...result, printer: job.settings.printer },
       source: job.source || p.source || null,
-      updated: Date.now(),
+      updated: Date.now(), usedAt: Date.now(), filesRemoved: null,
     });
   }
 
@@ -92,12 +100,42 @@ class Products {
   }
 
   // A slice job with the product's model and settings, for changing settings or printer.
-  toJob(p) { return this.slicer.fromFile(path.join(this.folder(p), 'model' + p.ext), p, p.id); }
+  toJob(p) {
+    if (p.filesRemoved) throw new Error('This model’s file was removed — download it again first');
+    p.usedAt = Date.now(); this.save();
+    return this.slicer.fromFile(path.join(this.folder(p), 'model' + p.ext), p, p.id);
+  }
 
-  gcodeFile(p) { return path.join(this.folder(p), 'print.gcode'); }
+  gcodeFile(p) {
+    if (p.filesRemoved) throw new Error('This model’s files were removed after 30 days unused (Thingiverse’s rules) — tap “Download & slice again”');
+    return path.join(this.folder(p), 'print.gcode');
+  }
+
+  // Removes the stored copies of Thingiverse models not printed or re-sliced for TV_KEEP_DAYS.
+  // Returns bytes freed.
+  expireThingiverse() {
+    let freed = 0, changed = false;
+    const limit = Date.now() - TV_KEEP_DAYS * 864e5;
+    for (const p of this.list) {
+      if (!fromThingiverse(p) || p.filesRemoved) continue;
+      if (Math.max(p.usedAt || 0, p.lastPrinted || 0, p.created || 0) > limit) continue;
+      const dir = this.folder(p);
+      let files = [];
+      try { files = fs.readdirSync(dir); } catch {}
+      for (const f of files) {
+        if (!/^(model\.|print\.gcode$|preview\.png$)/.test(f)) continue;
+        try { freed += fs.statSync(path.join(dir, f)).size; fs.rmSync(path.join(dir, f), { force: true }); } catch {}
+      }
+      p.filesRemoved = Date.now();
+      changed = true;
+      this.log(`Products: removed the Thingiverse files of ${p.name} (unused for ${TV_KEEP_DAYS} days)`);
+    }
+    if (changed) this.save();
+    return freed;
+  }
   fileName(p) { return (p.name.replace(/[^\w .()-]+/g, '').trim() || 'print').slice(0, 60) + '_V9D.gcode'; }
 
-  printed(p) { p.printed = (p.printed || 0) + 1; p.lastPrinted = Date.now(); this.save(); }
+  printed(p) { p.printed = (p.printed || 0) + 1; p.lastPrinted = p.usedAt = Date.now(); this.save(); }
 }
 
-module.exports = { Products };
+module.exports = { Products, TV_KEEP_DAYS, fromThingiverse };

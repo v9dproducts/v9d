@@ -726,3 +726,12 @@ body.demo .topbar h1::after, body.demo.is-home .home-head h1::after { content: '
 .banner.ctx .linkbtn { margin-left: auto; }
 .seg.radar-tabs { grid-template-columns: repeat(4, 1fr); }
 .seg.radar-tabs button { font-size: 13px; padding: 8px 2px; }
+
+/* Privacy & terms */
+.prose { line-height: 1.45; }
+.prose h3 { font-size: 15px; margin: 16px 0 6px; }
+.prose h3:first-child { margin-top: 0; }
+.prose p { margin: 0 0 8px; }
+.prose ul { margin: 0 0 4px; padding-left: 18px; }
+.prose li { margin: 4px 0; }
+.prose a { color: inherit; text-decoration: underline; }

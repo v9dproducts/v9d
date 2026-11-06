@@ -136,7 +136,7 @@ const Demo = {
         case 'delete': this.products = this.products.filter((q) => q !== x); return { ok: true };
         case 'settings': {
           const id = `demo${this.nextJob++}`;
-          this.jobs[id] = { id, name: x.name, ext: x.ext, size: 900000, created: Date.now(), state: 'uploaded', colours: x.colours, plates: 1, settings: x.settings, productId: x.id };
+          this.jobs[id] = { id, name: x.name, ext: x.ext, size: 900000, created: Date.now(), state: 'uploaded', colours: x.colours, plates: 1, settings: x.settings, productId: x.id, source: x.source || null };
           return { ...this.jobs[id] };
         }
         case 'from-job': this.fromJob(x, this.jobs[body.job]); return { ...x };
@@ -415,7 +415,7 @@ const Demo = {
 
   storage: { disk: { total: 238 * 1024 ** 3, free: 61.4 * 1024 ** 3 }, last: { at: Date.now() - 18 * 3600000, freed: 412 * 1024 ** 2 }, parts: [
     { id: 'slicer', label: 'Slices and downloads', note: 'removed after 7 days', bytes: 1.3 * 1024 ** 3 },
-    { id: 'products', label: 'Products', note: 'kept until you delete them', bytes: 86 * 1024 ** 2 },
+    { id: 'products', label: 'Products', note: 'kept until you delete them · Thingiverse models: files removed after 28 days unused', bytes: 86 * 1024 ** 2 },
     { id: 'thumbs', label: 'Printer file pictures', note: 'removed after 60 days', bytes: 4.2 * 1024 ** 2 },
     { id: 'logs', label: 'Logs', note: 'trimmed above 5 MB', bytes: 3.1 * 1024 ** 2 },
     { id: 'folder0', label: 'Downloads', note: 'files older than 14 days removed', bytes: 2.4 * 1024 ** 3 },
@@ -423,7 +423,7 @@ const Demo = {
 
   fromJob(x, j) {
     Object.assign(x, { ext: j.ext, colours: j.colours, plates: 1, settings: j.settings, result: { ...j.result, printer: j.settings.printer },
-      demoImg: j.ext === '.3mf' ? 'blocks.png' : 'block.png', source: j.source || x.source || null, updated: Date.now() });
+      demoImg: j.ext === '.3mf' ? 'blocks.png' : 'block.png', source: j.source || x.source || null, updated: Date.now(), usedAt: Date.now(), filesRemoved: null });
   },
 
   products: (() => {
@@ -441,6 +441,12 @@ const Demo = {
       mk('demop2', 'Two colour coasters (set of 2)', 'blocks.png', 'k2-plus', 3881, 8.2, 2, { etsy: 12.99, ebay: 11.5 }, [['C', 'PLA', '#E5484D'], ['B', 'PLA', '#1C1C1C']], 4),
       mk('demop3', 'Skadis pen holder', 'stand.png', 'k1-max', 3681, 19.3, 2, { etsy: 9.5, ebay: 8.5 }, [['A', 'PLA', '#F2F2F2']], 21),
       mk('demop4', 'Cable tidy block', 'block.png', 'k1-max', 712, 7.9, 6, {}, [['A', 'PLA High Speed', '#F2F2F2']], 0),
+      // From Thingiverse, not printed for over 28 days: its stored file was removed (30-day rule).
+      mk('demop5', 'Folding phone stand', 'stand.png', 'k2-plus', 2650, 14.2, 1, { etsy: 8.5 }, [['A', 'PLA', '#2B6CB0']], 3, {
+        lastPrinted: now - 33 * day, usedAt: now - 33 * day, filesRemoved: now - 4 * day,
+        source: { site: 'Thingiverse', id: 6005, url: 'https://www.thingiverse.com/thing:6005', file: 'phone_stand.stl', fileId: 1, thumbnail: new URL('icons/demo/stand.png', location.href).href,
+          creator: 'minimalist', licence: 'Creative Commons - Attribution - No Derivatives', sellable: true },
+      }),
     ];
   })(),
 

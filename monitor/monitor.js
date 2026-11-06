@@ -14,7 +14,7 @@ const dash = require('./k2dash');
 const k1 = require('./k1dash');
 const DASH = { moonraker: dash, creality: k1 }; // full dashboard module per printer type
 const { Slicer } = require('./slicer');
-const { Products } = require('./products');
+const { Products, fromThingiverse } = require('./products');
 const { Discover } = require('./discover');
 const { Housekeeping } = require('./housekeeping');
 
@@ -525,7 +525,18 @@ http.createServer(async (req, res) => {
       try {
         if (req.method === 'POST' && sub === '') return send(res, 200, products.edit(p, await readBody(req)), origin);
         if (req.method === 'POST' && sub === '/delete') { products.remove(p); return send(res, 200, { ok: true }, origin); }
-        if (req.method === 'POST' && sub === '/settings') return send(res, 200, slicer.public(products.toJob(p)), origin);
+        if (req.method === 'POST' && sub === '/settings') {
+          if (!p.filesRemoved) return send(res, 200, slicer.public(products.toJob(p)), origin);
+          // A Thingiverse model whose stored copy was removed: download the same file again and
+          // open it with the product's settings ("Update the product" then stores it again).
+          if (!fromThingiverse(p)) throw new Error('This product’s model file is missing');
+          if (!discover.available()) throw new Error('Connect Thingiverse on the home PC to download it again');
+          const s = p.source;
+          const job = await discover.toJob(s.id, s.fileId, { fileName: s.file, occasion: s.occasion, idea: s.idea });
+          Object.assign(job, { name: p.name, settings: p.settings, productId: p.id });
+          slicer.save(job);
+          return send(res, 200, slicer.public(job), origin);
+        }
         if (req.method === 'POST' && sub === '/from-job') {
           const job = slicer.get((await readBody(req)).job);
           if (!job) throw new Error('This slice has expired — slice the file again');
@@ -630,7 +641,7 @@ http.createServer(async (req, res) => {
   }
 }).listen(config.port, '127.0.0.1', () => log(`V9D monitor on http://127.0.0.1:${config.port}`));
 
-const housekeeping = new Housekeeping(DATA, config, { slicer, printers, notify: (...a) => notify(...a), log });
+const housekeeping = new Housekeeping(DATA, config, { slicer, products, printers, notify: (...a) => notify(...a), log });
 loadPrinters().then(() => setTimeout(() => { for (const id of printers.keys()) syncHistory(id); }, 10000));
 setInterval(loadPrinters, 10 * 60 * 1000);
 setInterval(() => { for (const id of printers.keys()) syncHistory(id); }, 30 * 60 * 1000);

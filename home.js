@@ -188,7 +188,10 @@ const SettingsPage = {
         <span class="w-col"><b>Storage</b><span class="w-sub">Free space, automatic clean-up</span></span><span class="chev" aria-hidden="true">›</span></a>
       <h3 class="day">Printers</h3>
       <a class="hub-row" href="#/printers/manage"><span class="hub-icon">${icon('printer', 26)}</span>
-        <span class="w-col"><b>Manage printers</b><span class="w-sub">Add, edit, export or import printers</span></span><span class="chev" aria-hidden="true">›</span></a>`;
+        <span class="w-col"><b>Manage printers</b><span class="w-sub">Add, edit, export or import printers</span></span><span class="chev" aria-hidden="true">›</span></a>
+      <h3 class="day">About</h3>
+      <a class="hub-row" href="#/privacy"><span class="hub-icon">${icon('shield', 26)}</span>
+        <span class="w-col"><b>Privacy & terms</b><span class="w-sub">What V9D stores, and the Thingiverse rules it follows</span></span><span class="chev" aria-hidden="true">›</span></a>`;
     calc.bind();
     $('#setAlerts').onclick = () => Alerts.open();
     $('#sMargin').oninput = (e) => { $('#mVal').textContent = `${e.target.value}%`; Fees.set({ margin: +e.target.value }); };
