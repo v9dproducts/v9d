@@ -334,6 +334,27 @@ function send(res, code, body, origin) {
 // Network failures reaching a printer read as "fetch failed"; say what it means.
 const friendly = (err) => (/fetch failed|ECONNREFUSED|EHOSTUNREACH|timeout|aborted/i.test(err.message) ? 'Can’t reach the printer — is it switched on and connected?' : err.message);
 
+// ---------- Who may send commands ----------
+// Browsers attach an Origin header to cross-site requests, and a page on any website can send
+// a plain POST without asking first. So commands (POST) are only accepted from V9D's own pages:
+// the published app, this monitor's own address(es), or no browser at all (no Origin header).
+const trustedOrigins = new Set(config.allowedOrigins);
+try { // this PC's Tailscale name, e.g. https://v9d.tail09fd44.ts.net (and the camera port)
+  require('child_process').execFile('tailscale', ['status', '--json'], { timeout: 10000 }, (err, out) => {
+    const name = !err && JSON.parse(out).Self?.DNSName?.replace(/\.$/, '');
+    if (name) for (const o of [`https://${name}`, `https://${name}:8443`]) trustedOrigins.add(o);
+  });
+} catch {}
+function trustedOrigin(req) {
+  const o = req.headers.origin;
+  if (!o) return true;
+  if (trustedOrigins.has(o)) return true;
+  try {
+    const host = new URL(o).host;
+    return [req.headers.host, req.headers['x-forwarded-host']].includes(host);
+  } catch { return false; }
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -379,6 +400,10 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
     if (req.method === 'OPTIONS') return send(res, 204, undefined, origin);
+    if (req.method === 'POST') {
+      if (!trustedOrigin(req)) { log(`Blocked a command from ${String(origin).slice(0, 80)}`); return send(res, 403, { error: 'Not allowed from this page' }); }
+      if (!/^application\/(json|octet-stream)\b/i.test(req.headers['content-type'] || '')) return send(res, 415, { error: 'Send JSON' }, origin);
+    }
 
     if (req.method === 'GET' && url.pathname === '/api/status') {
       const out = {};

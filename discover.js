@@ -107,7 +107,7 @@ const DiscoverPage = {
         </div>`).join('') || '<p class="muted">No files.</p>'}</div>
       ${printable.length ? '' : '<p class="hint">This model has no STL or 3MF files V9D can slice.</p>'}
       ${t.description ? `<h3 class="day">About</h3><p class="disc-desc">${esc(t.description.replace(/<[^>]*>/g, ''))}</p>` : ''}
-      <a class="btn block" href="${esc(t.url)}" target="_blank" rel="noopener">Open on Thingiverse ↗</a>`;
+      <a class="btn block" href="${esc(safeUrl(t.url))}" target="_blank" rel="noopener">Open on Thingiverse ↗</a>`;
     document.querySelectorAll('[data-file]').forEach((b) => b.onclick = async () => {
       if (l.sellable === false && !confirm('This model is for personal use only — prints can’t be sold. Print it anyway (for yourself)?')) return;
       document.querySelectorAll('[data-file]').forEach((x) => { x.disabled = true; });
@@ -133,7 +133,7 @@ function licenceBadge(l) {
 // Where a sliced file or product came from: site, designer, licence.
 function sourceHtml(src) {
   if (!src) return '';
-  return `<span class="src">From <a href="${esc(src.url)}" target="_blank" rel="noopener">${esc(src.site)}</a>${src.creator ? ` · by ${esc(src.creator)}` : ''} · ${esc(src.licence || 'licence unknown')} ${licenceBadge({ sellable: src.sellable })}${src.occasion ? `<br>📅 For ${esc(src.occasion)}` : ''}</span>`;
+  return `<span class="src">From <a href="${esc(safeUrl(src.url))}" target="_blank" rel="noopener">${esc(src.site)}</a>${src.creator ? ` · by ${esc(src.creator)}` : ''} · ${esc(src.licence || 'licence unknown')} ${licenceBadge({ sellable: src.sellable })}${src.occasion ? `<br>📅 For ${esc(src.occasion)}` : ''}</span>`;
 }
 
 // ---------- Settings → Storage (home PC drive) ----------

@@ -79,7 +79,7 @@ const MaintPage = {
         <div class="row-item"><span>Printed since</span><span></span><b>${Math.round(i.used.hours)} h · ${i.used.kg.toFixed(2)} kg</b></div>
       </div>
       <p class="note">${esc(i.how)}</p>
-      <p class="note">${i.source === 'creality' ? `Interval from Creality${i.url ? ` — <a href="${esc(i.url)}" target="_blank" rel="noopener">maintenance guide</a>` : ''}.` : 'Typical interval — Creality doesn’t publish one for this.'}</p>
+      <p class="note">${i.source === 'creality' ? `Interval from Creality${i.url ? ` — <a href="${esc(safeUrl(i.url))}" target="_blank" rel="noopener">maintenance guide</a>` : ''}.` : 'Typical interval — Creality doesn’t publish one for this.'}</p>
       ${helpFor(this.data.printers[this.printer].name, i.id) ? '<button class="btn block" id="howTo">How to do it — step by step</button>' : ''}
       <button class="btn primary block" id="doItem">Perform maintenance</button>`);
     $('#cancelSheet').onclick = closeSheet;

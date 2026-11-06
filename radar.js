@@ -197,7 +197,7 @@ const RadarPage = {
           <div class="muted">${esc(t.category)} · ${esc(t.priceRange)}</div>
           <p class="idea-desc">${esc(t.why)}</p>
           <p class="muted">${esc(t.printNotes)}</p>
-          <div class="sources">${t.sources.slice(0, 3).map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)} ↗</a>`).join('')}</div>
+          <div class="sources">${t.sources.slice(0, 3).map((s) => `<a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(s.title)} ↗</a>`).join('')}</div>
           ${t.printable ? matchStrip(searchFor(t), null, t.name) : ''}
         </div>`).join('');
     };

@@ -139,7 +139,7 @@ const ProductsPage = {
   listingsHtml() {
     const l = this.product.listings || [];
     const names = { etsy: 'Etsy', ebay: 'eBay', shop: 'Own shop', other: 'Link' };
-    return (l.map((x, i) => `<div class="row-item"><span>${esc(names[x.channel])}</span><a class="muted" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url.replace(/^https:\/\/(www\.)?/, '').slice(0, 40))}…</a><button class="linkbtn" data-unlist="${i}">Remove</button></div>`).join('')
+    return (l.map((x, i) => `<div class="row-item"><span>${esc(names[x.channel])}</span><a class="muted" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">${esc(x.url.replace(/^https:\/\/(www\.)?/, '').slice(0, 40))}…</a><button class="linkbtn" data-unlist="${i}">Remove</button></div>`).join('')
       || '<p class="muted">No listing links yet.</p>') + '<button class="linkbtn" id="addListing">+ Add a listing link</button>';
   },
 

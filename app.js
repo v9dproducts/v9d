@@ -1,6 +1,9 @@
 // V9D — tiny hash-routed PWA. Pages are listed in ROUTES; the tab bar groups them.
 
 const $ = (sel, root = document) => root.querySelector(sel);
+// Links from outside data (web research, Thingiverse, listings) must be real web links —
+// never "javascript:" or other schemes that would run code when tapped.
+const safeUrl = (u) => (/^https?:\/\//i.test(String(u || '').trim()) ? String(u).trim() : '#');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const store = {
