@@ -71,11 +71,17 @@ New-Item -ItemType Directory -Force -Path $g2rDir | Out-Null
 if (-not (Test-Path $g2rExe)) {
   $zip = Join-Path $env:TEMP 'go2rtc_win64.zip'
   Invoke-WebRequest 'https://github.com/AlexxIT/go2rtc/releases/download/v1.9.14/go2rtc_win64.zip' -OutFile $zip -UseBasicParsing
+  # Refuse a tampered download: this is the fingerprint of the official v1.9.14 release.
+  if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne 'DD4167D75CB04ABE618855B7C71F8658BD009F60C1A71835D134D2C11C939907') {
+    Remove-Item $zip; throw 'The go2rtc download does not match the official release - not installing it.'
+  }
   Expand-Archive $zip -DestinationPath $g2rDir -Force
   Remove-Item $zip
 }
 $printers = Invoke-RestMethod 'https://v9dproducts.github.io/v9d/printers.json'
-$yaml = @('api:', '  listen: "127.0.0.1:1984"', 'rtsp:', '  listen: ""', 'streams:')
+# The relay's API can change settings and add streams that run programs, so only the camera
+# page's files and the live video connection are opened.
+$yaml = @('api:', '  listen: "127.0.0.1:1984"', '  allow_paths: ["/", "/api/ws"]', 'rtsp:', '  listen: ""', 'streams:')
 foreach ($p in $printers) {
   if ($p.camera -eq 'creality') { $yaml += "  $($p.id): webrtc:http://$($p.ip):8000/call/webrtc_local#format=creality" }
 }
