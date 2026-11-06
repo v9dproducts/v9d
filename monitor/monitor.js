@@ -78,7 +78,7 @@ const maintenance = new Maintenance(DATA, usage, (...a) => notify(...a), log);
 const trends = new Trends(DATA, config, log);
 const slicer = new Slicer(DATA, log);
 const products = new Products(DATA, slicer, log);
-const discover = new Discover(config, slicer, log);
+const discover = new Discover(config, slicer, log, DATA);
 
 // Motors stay energised for a while after a print, then the firmware switches them off.
 function holding(id, state) {
@@ -481,6 +481,7 @@ http.createServer(async (req, res) => {
     // ---------- Discover (Thingiverse) ----------
     if (req.method === 'GET' && url.pathname === '/api/discover') {
       if (!discover.available()) return send(res, 200, { available: false, items: [] }, origin);
+      if (url.searchParams.get('usage') === '1') return send(res, 200, { available: true, usage: discover.usage() }, origin);
       try {
         const q = url.searchParams;
         return send(res, 200, { available: true, ...(await discover.list({ q: q.get('q') || '', sort: q.get('sort') || 'trending', sellable: q.get('sellable') === '1', page: Number(q.get('page')) || 1, limit: Number(q.get('limit')) || 30 })) }, origin);
@@ -530,6 +531,7 @@ http.createServer(async (req, res) => {
           // A Thingiverse model whose stored copy was removed: download the same file again and
           // open it with the product's settings ("Update the product" then stores it again).
           if (!fromThingiverse(p)) throw new Error('This product’s model file is missing');
+          if (p.source.takenDown) throw new Error('This design was removed from Thingiverse, so it can’t be downloaded again');
           if (!discover.available()) throw new Error('Connect Thingiverse on the home PC to download it again');
           const s = p.source;
           const job = await discover.toJob(s.id, s.fileId, { fileName: s.file, occasion: s.occasion, idea: s.idea });
@@ -641,7 +643,7 @@ http.createServer(async (req, res) => {
   }
 }).listen(config.port, '127.0.0.1', () => log(`V9D monitor on http://127.0.0.1:${config.port}`));
 
-const housekeeping = new Housekeeping(DATA, config, { slicer, products, printers, notify: (...a) => notify(...a), log });
+const housekeeping = new Housekeeping(DATA, config, { slicer, products, discover, printers, notify: (...a) => notify(...a), log });
 loadPrinters().then(() => setTimeout(() => { for (const id of printers.keys()) syncHistory(id); }, 10000));
 setInterval(loadPrinters, 10 * 60 * 1000);
 setInterval(() => { for (const id of printers.keys()) syncHistory(id); }, 30 * 60 * 1000);

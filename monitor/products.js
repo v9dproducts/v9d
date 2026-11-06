@@ -111,6 +111,19 @@ class Products {
     return path.join(this.folder(p), 'print.gcode');
   }
 
+  // Thingiverse's rules: when a design is deleted or taken down, remove it within 24 hours.
+  // Drops the stored files and the Thingiverse picture; your name, prices and notes stay.
+  takenDown(p) {
+    const dir = this.folder(p);
+    let files = [];
+    try { files = fs.readdirSync(dir); } catch {}
+    for (const f of files) if (/^(model\.|print\.gcode$|preview\.png$)/.test(f)) fs.rmSync(path.join(dir, f), { force: true });
+    p.filesRemoved = p.filesRemoved || Date.now();
+    p.source = { ...p.source, thumbnail: null, takenDown: Date.now() };
+    this.save();
+    this.log(`Products: ${p.name} was removed from Thingiverse — deleted its files`);
+  }
+
   // Removes the stored copies of Thingiverse models not printed or re-sliced for TV_KEEP_DAYS.
   // Returns bytes freed.
   expireThingiverse() {

@@ -199,8 +199,9 @@ const PrivacyPage = {
           <li>Models are shown only inside V9D, clearly labelled as Thingiverse’s, with a link to the designer’s page. They aren’t mixed with other sites’ results.</li>
           <li>Nothing is posted, liked or changed on Thingiverse, and no site pages are scraped — only the official API is used.</li>
           <li>A file is downloaded only when you choose it. Downloads are deleted within 7 days; files kept with a product are removed after 28 days without printing and downloaded again when needed.</li>
+          <li>Once a day V9D checks that the models it holds are still on Thingiverse. If a designer deletes one or Thingiverse takes it down, its files are removed straight away.</li>
           <li>Each model’s licence is shown before printing, and “personal use only” models are flagged as not for sale. Selling prints of a model is only done when its licence allows it — the designer’s page is the final word.</li>
-          <li>V9D doesn’t sell or give anyone else access to Thingiverse content, and stays well under Thingiverse’s request limits.</li>
+          <li>V9D doesn’t sell or give anyone else access to Thingiverse content, isn’t used to train AI, and stays under Thingiverse’s request limits (at most 800 requests a day).</li>
         </ul>
         <p class="muted">Thingiverse’s own <a href="https://www.thingiverse.com/legal/api" target="_blank" rel="noopener">API terms</a> and <a href="https://www.thingiverse.com/legal/privacy" target="_blank" rel="noopener">privacy policy</a> apply to its content and account.</p>
       </div>`;

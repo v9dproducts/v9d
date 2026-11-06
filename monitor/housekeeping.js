@@ -8,7 +8,9 @@
 //   - folders listed in config.json "cleanFolders" (e.g. Downloads) lose files older than N days;
 //   - logs over 5 MB are rotated (the start-up scripts move them aside on restart, so the monitor
 //     restarts itself — only when no printer is printing — and the camera relay is restarted);
-//   - a notification warns when less than 5 GB is free.
+//   - a notification warns when less than 5 GB is free;
+//   - Thingiverse models in products and recent slices are checked once a day, and removed if the
+//     designer deleted them or Thingiverse took them down (its rules: within 24 hours).
 
 const fs = require('fs');
 const path = require('path');
@@ -44,8 +46,9 @@ function prune(dir, days, keep = () => false) {
 }
 
 class Housekeeping {
-  constructor(dataDir, config, { slicer, products, printers, notify, log }) {
+  constructor(dataDir, config, { slicer, products, discover, printers, notify, log }) {
     this.products = products;
+    this.discover = discover;
     this.data = dataDir;
     this.config = config;
     this.slicer = slicer;
@@ -90,11 +93,33 @@ class Housekeeping {
   tick() {
     const now = new Date();
     if (now.getHours() === 3 && (!this.last || Date.now() - this.last.at > 20 * 3600 * 1000)) this.run();
+    // Takedown check: at least once every 23 hours (and soon after a restart), whatever the hour.
+    if (!this.takedownAt || Date.now() - this.takedownAt > 23 * 3600 * 1000) { this.takedownAt = Date.now(); this.takedowns().catch((e) => this.log(`Housekeeping: takedown check failed — ${e.message}`)); }
     const d = this.disk();
     if (d && d.free < LOW_DISK && Date.now() - this.warnedAt > 24 * 3600 * 1000) {
       this.warnedAt = Date.now();
       this.notify('⚠️ Home PC storage low', `${(d.free / 1024 ** 3).toFixed(1)} GB free — open V9D → Settings → Storage`, 'storage');
     }
+  }
+
+  // Once a day: ask Thingiverse whether each model V9D still holds is still listed.
+  async takedowns() {
+    if (!this.discover?.available()) return;
+    const held = new Map(); // thing id -> { products, jobs }
+    const add = (id, key, x) => { if (!id) return; const h = held.get(String(id)) || { products: [], jobs: [] }; h[key].push(x); held.set(String(id), h); };
+    for (const p of this.products.list) if (p.source?.site === 'Thingiverse' && !p.source.takenDown) add(p.source.id, 'products', p);
+    for (const j of this.slicer.jobs.values()) if (j.source?.site === 'Thingiverse') add(j.source.id, 'jobs', j);
+    let removed = 0, unknown = 0;
+    for (const [id, h] of held) {
+      const listed = await this.discover.stillListed(id);
+      if (listed === null) { unknown++; continue; }
+      if (listed) continue;
+      removed++;
+      for (const p of h.products) this.products.takenDown(p);
+      for (const j of h.jobs) { fs.rmSync(path.join(this.data, 'slicer', j.id), { recursive: true, force: true }); }
+    }
+    if (removed) this.slicer.forgetMissing();
+    this.log(`Housekeeping: checked ${held.size} Thingiverse model${held.size === 1 ? '' : 's'} — ${removed} removed from Thingiverse${unknown ? `, ${unknown} couldn’t be checked` : ''}`);
   }
 
   run({ deep = false } = {}) {

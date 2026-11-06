@@ -5,8 +5,8 @@
 const PRINTER_NAMES = { 'k2-plus': 'K2 Plus', 'k1-max': 'K1 Max' };
 const QUALITY_NAMES = { draft: 'Draft 0.24 mm', standard: 'Standard 0.20 mm', fine: 'Fine 0.16 mm', extrafine: 'Extra fine 0.12 mm' };
 // A Thingiverse product whose stored files were removed (30-day rule) shows Thingiverse's own picture.
-const productImg = (p) => (p.filesRemoved && p.source?.thumbnail ? safeUrl(p.source.thumbnail)
-  : Monitor.img(`/api/products/${p.id}/preview?t=${p.updated}`, p.demoImg || ''));
+const productImg = (p) => (!p.filesRemoved ? Monitor.img(`/api/products/${p.id}/preview?t=${p.updated}`, p.demoImg || '')
+  : p.source?.thumbnail ? safeUrl(p.source.thumbnail) : 'icons/icon-192.png');
 const TV_RULE = 'Thingiverse’s rules only allow keeping a copy of its models while they’re in use, so V9D removes the stored file after 28 days without printing.';
 
 const ProductsPage = {
@@ -46,7 +46,8 @@ const ProductsPage = {
           <span class="w-col">
             <b>${esc(x.name)}</b>
             <span class="muted">${fmt.money(c)} each${x.units > 1 ? ` · ${x.units} per print` : ''} · ${esc(PRINTER_NAMES[x.result?.printer] || '')}</span>
-            ${x.filesRemoved ? '<span class="muted">☁︎ File removed — downloads again when you print</span>' : ''}
+            ${x.source?.takenDown ? '<span class="muted neg">Removed from Thingiverse — can’t be printed again</span>'
+              : x.filesRemoved ? '<span class="muted">☁︎ File removed — downloads again when you print</span>' : ''}
             ${pr ? `<span class="muted">${esc(Fees.CHANNELS[best[0]].label)} ${fmt.money(best[1])} → <b class="${pr.profit >= 0 ? 'pos' : 'neg'}">${fmt.money(Math.abs(pr.profit))} ${pr.profit >= 0 ? 'profit' : 'loss'}</b> (${Math.round(pr.margin * 100)}%)</span>`
               : `<span class="muted">No price yet · min. ${fmt.money(Fees.suggest('etsy', c, undefined, fs) || 0)} on Etsy for ${fs.margin}%</span>`}
           </span>
@@ -84,7 +85,8 @@ const ProductsPage = {
         <span class="muted">${x.printed ? `Printed ${x.printed} time${x.printed > 1 ? 's' : ''} · last ${fmt.date(x.lastPrinted)}` : 'Not printed from V9D yet'}</span>
       </div>
 
-      ${x.filesRemoved ? `
+      ${x.source?.takenDown ? `
+      <p class="banner warn">This design was removed from Thingiverse on ${fmt.date(x.source.takenDown)}, so V9D deleted its files (Thingiverse’s rules). It can’t be downloaded or printed again — take down any listings for it. Your notes and prices are kept for your records.</p>` : x.filesRemoved ? `
       <p class="banner">☁︎ The model file was removed on ${fmt.date(x.filesRemoved)}. ${TV_RULE} Your prices, settings and listings are kept.</p>
       <button class="btn primary block" id="refetch">${icon('printer', 18)} Download & slice again</button>` : `
       <div class="ctrl-row">
@@ -200,7 +202,7 @@ const ProductsPage = {
         location.hash = '#/printers/print';
       } catch (e) { toast(`Couldn’t ${x.filesRemoved ? 'download it' : 'open the settings'}: ${e.message}`, true); btn.disabled = false; btn.innerHTML = was; }
     };
-    if (x.filesRemoved) $('#refetch').onclick = (e) => openInPrint(e.currentTarget);
+    if (x.filesRemoved) { if ($('#refetch')) $('#refetch').onclick = (e) => openInPrint(e.currentTarget); }
     else {
       $('#printAgain').onclick = () => this.printSheet();
       $('#sendOnly').onclick = () => this.print(false);
