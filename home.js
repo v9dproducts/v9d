@@ -153,7 +153,6 @@ const BusinessPage = {
     setHeader('Business', { tabRoot: true });
     const tiles = [
       ['#/products', 'tag', 'Products', 'What you sell: print again, cost, price, profit'],
-      ['#/discover', 'bulb', 'Discover models', 'Trending on Thingiverse — find, slice and print'],
       ['#/usage', 'chart', 'Usage & Costs', 'Material and electricity per print'],
       ['#/power', 'bolt', 'Live Power', 'What the printers draw right now'],
       ['#/radar', 'trend', 'Trend Radar', 'What’s selling, hot dates, print ideas'],

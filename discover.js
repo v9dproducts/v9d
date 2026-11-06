@@ -12,10 +12,10 @@ const DiscoverPage = {
   context() { const c = store.get('discoverContext', null); return c && Date.now() - c.at < 2 * 3600 * 1000 ? c : null; },
   setOpts(o) { store.set('discover', { ...this.opts(), ...o }); },
 
-  render() {
-    setHeader('Discover', { back: true });
+  // Draws the model browser into Trend Radar's "Models" tab.
+  mount(box) {
     const o = this.opts();
-    $('#view').innerHTML = `
+    box.innerHTML = `
       ${this.context() ? `<p class="banner ctx">${icon('trend', 16)} For ${esc(this.context().occasion || this.context().idea)}${this.context().occasion && this.context().idea ? ` — ${esc(this.context().idea)}` : ''}<button class="linkbtn" id="ctxClear">✕</button></p>` : ''}
       <div class="disc-search"><input id="dq" type="search" placeholder="Search Thingiverse — e.g. cable clip, planter" value="${esc(o.q)}" enterkeyhint="search"></div>
       <div class="seg disc-sort">${[['trending', 'This week'], ['popular', 'All time'], ['makes', 'Most made'], ['newest', 'Newest']]
@@ -44,7 +44,7 @@ const DiscoverPage = {
     const path = this.query(this.page);
     const box = $('#dlist');
     const show = (d) => {
-      if (currentRoute() !== 'discover' || !$('#dlist')) return;
+      if (!$('#dlist')) return; // left the Models tab meanwhile
       if (!d.available) { $('#dlist').innerHTML = this.setupHtml(); return; }
       if (this.page === 1) this.items = d.items; else this.items = [...this.items, ...d.items.filter((x) => !this.items.some((y) => y.id === x.id))];
       this.draw(d.items.length >= 20 || (this.opts().sellable && d.items.length > 0));
@@ -83,7 +83,7 @@ const DiscoverPage = {
 
   // ---------- One model ----------
   async detail(id) {
-    setHeader('Model', { back: true, backTo: '#/discover' });
+    setHeader('Model', { back: true, backTo: '#/radar' });
     $('#view').innerHTML = skeleton();
     let t;
     try { t = await Monitor.get(`/api/discover/thing/${id}`); }
@@ -164,4 +164,8 @@ const StoragePage = {
 };
 
 // Opening Discover from the hub or Print a file starts a fresh search, not tied to an idea.
-document.addEventListener('click', (e) => { if (e.target.closest('a[href="#/discover"]')) store.set('discoverContext', null); });
+document.addEventListener('click', (e) => {
+  if (e.target.closest('a[href="#/discover"]')) { store.set('discoverContext', null); DiscoverPage.setOpts({ q: '' }); }
+});
+// Old #/discover links open Trend Radar's Models tab.
+function showModelsTab() { store.set('radarTab', 'models'); location.replace('#/radar'); }

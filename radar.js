@@ -31,7 +31,7 @@ const RadarPage = {
         this.data.research = snap;
       } catch {}
     }
-    if (!this.data.research && this.tab !== 'dates') this.tab = 'dates';
+    if (!this.data.research && this.tab !== 'dates' && this.tab !== 'models') this.tab = 'dates';
     if (currentRoute() !== 'radar') return;
     this.draw();
     if (this.data.running) this.poll();
@@ -64,8 +64,8 @@ const RadarPage = {
       <div class="radar-status"><span class="muted">${esc(status)}</span>
         ${d.hasKey && !d.running ? '<button class="linkbtn" id="radarRefresh">Refresh now</button>' : ''}</div>
       ${r ? `<div class="hero"><div class="hero-label">Today’s focus</div><p class="radar-summary">${esc(r.summary)}</p></div>` : ''}
-      <div class="seg">
-        ${[['ideas', 'Print ideas'], ['dates', 'Hot dates'], ['trending', 'Trending']]
+      <div class="seg radar-tabs">
+        ${[['ideas', 'Ideas'], ['models', 'Models'], ['dates', 'Hot dates'], ['trending', 'Trending']]
           .map(([k, l]) => `<button class="${this.tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}
       </div>
       <div id="radarBody"></div>`);
@@ -74,7 +74,8 @@ const RadarPage = {
     });
     const refresh = $('#radarRefresh');
     if (refresh) refresh.onclick = () => this.refresh();
-    if (this.tab === 'dates') this.drawDates();
+    if (this.tab === 'models') DiscoverPage.mount($('#radarBody'));
+    else if (this.tab === 'dates') this.drawDates();
     else if (this.tab === 'trending') this.drawTrending();
     else this.drawIdeas();
   },
@@ -222,7 +223,8 @@ function searchFor(x) {
 function openDiscover(q, context = {}) {
   store.set('discoverContext', { ...context, at: Date.now() });
   DiscoverPage.setOpts({ q, sellable: true, sort: 'popular' });
-  location.hash = '#/discover';
+  store.set('radarTab', 'models');
+  if (currentRoute() === 'radar') RadarPage.render(); else location.hash = '#/radar';
 }
 
 function matchStrip(q, occasion, idea) {

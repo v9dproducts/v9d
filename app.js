@@ -477,7 +477,7 @@ const ROUTES = {
   radar: () => RadarPage.render(),
   maintenance: () => MaintPage.render(),
   products: () => ProductsPage.render(),
-  discover: () => DiscoverPage.render(),
+  discover: () => showModelsTab(),
   storage: () => StoragePage.render(),
   settings: () => SettingsPage.render(),
 };

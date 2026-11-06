@@ -68,7 +68,7 @@ const PrintPage = {
           <span class="muted">From Files, iCloud or your MakerWorld downloads · up to 200 MB</span>
         </label>
         <div id="upProgress"></div>
-        <a class="btn block disc-entry" href="#/discover">${icon('trend', 18)} Discover trending models</a>
+        <a class="btn block disc-entry" href="#/discover">${icon('trend', 18)} Find trending models</a>
         <p class="hint">The home PC slices it with OrcaSlicer using the settings you choose here — a 3MF’s own print settings are replaced. Multi-colour 3MF files keep their colours; you pick which CFS slot each one prints from.</p>`;
       $('#pickFile').onchange = (e) => e.target.files[0] && this.upload(e.target.files[0]);
       this.bindPrinterSeg();
