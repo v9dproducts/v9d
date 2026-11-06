@@ -491,9 +491,9 @@ function routeFor(r) {
   return null;
 }
 function tabFor(r) {
-  if (r.startsWith('printers') || r.startsWith('discover')) return 'printers';
+  if (r.startsWith('printers')) return 'printers';
   if (r === 'storage') return 'settings';
-  if (['business', 'usage', 'power', 'radar', 'maintenance', 'products'].includes(r.split('/')[0])) return 'business';
+  if (['business', 'usage', 'power', 'radar', 'maintenance', 'products', 'discover'].includes(r.split('/')[0])) return 'business';
   if (r === 'settings') return 'settings';
   return 'home';
 }

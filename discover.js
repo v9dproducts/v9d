@@ -11,7 +11,7 @@ const DiscoverPage = {
   setOpts(o) { store.set('discover', { ...this.opts(), ...o }); },
 
   render() {
-    setHeader('Discover', { back: true, backTo: '#/printers/print' });
+    setHeader('Discover', { back: true });
     const o = this.opts();
     $('#view').innerHTML = `
       <div class="disc-search"><input id="dq" type="search" placeholder="Search Thingiverse — e.g. cable clip, planter" value="${esc(o.q)}" enterkeyhint="search"></div>
